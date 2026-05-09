@@ -1,0 +1,37 @@
+# Firmware dumps (large binaries)
+*.bin
+!research/lan_intercept.py
+
+# Ghidra project (2.7GB)
+research/ghidra_project/
+
+# VeSync iOS app bundle (350MB)
+research/VeSync.app/
+
+# Ghidra analysis logs
+research/ghidra_analysis.log
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Research venv
+research/.venv/
+
+# DS_Store
+.DS_Store
+
+# IDE
+.claude/
+
+# Screen logs
+screenlog.*
+hardcopy.*
+
+# ESPHome cloned repos (can re-clone)
+esphome-levoit-air-purifier/
+esphome-projects/
+
+# Keys (sensitive)
+research/ble_rsa_privkey.pem
