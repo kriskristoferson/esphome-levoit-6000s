@@ -5,17 +5,17 @@ esphome:
     board_build.flash_mode: dio
   includes:
     - usb_disable.h
-  on_boot:
-    priority: 600
-    then:
-      - lambda: |-
-          ESP_LOGW("mcu", "=== BOOT: passive listen for 30s, then wifi_ver + query ===");
 
 esp32:
   board: esp32-c3-devkitc-02
   variant: esp32c3
   framework:
     type: esp-idf
+
+external_components:
+  - source:
+      type: local
+      path: components
 
 wifi:
   ssid: "REDACTED-SSID"
@@ -39,110 +39,70 @@ ota:
 
 captive_portal:
 
-globals:
-  - id: frame_counter
-    type: uint8_t
-    initial_value: '0x12'
-
 uart:
   - id: mcu_uart
     tx_pin: GPIO19
     rx_pin: GPIO18
     baud_rate: 115200
-    debug:
-      direction: BOTH
-      dummy_receiver: true
-      after:
-        timeout: 50ms
-      sequence:
-        - lambda: |-
-            char dir = direction == uart::UART_DIRECTION_TX ? '>' : '<';
-            std::string hex_str;
-            char buf[4];
-            for (size_t i = 0; i < bytes.size(); i++) {
-              snprintf(buf, sizeof(buf), "%02X", bytes[i]);
-              if (i > 0) hex_str += ',';
-              hex_str += buf;
-            }
-            if (direction == uart::UART_DIRECTION_RX) {
-              ESP_LOGW("uart_rx", "<<< [%d bytes] %s", bytes.size(), hex_str.c_str());
-            } else {
-              ESP_LOGI("uart_tx", ">>> [%d bytes] %s", bytes.size(), hex_str.c_str());
-            }
+
+levoit_6000s:
+  id: humidifier
+  uart_id: mcu_uart
+
+sensor:
+  - platform: levoit_6000s
+    levoit_6000s_id: humidifier
+    current_humidity:
+      name: "Current Humidity"
+    current_temp:
+      name: "Current Temperature"
+    fan_speed:
+      name: "Fan Speed"
+    filter_life_pct:
+      name: "Filter Life"
+    filter_life_days:
+      name: "Filter Life Days"
+    timer_remaining:
+      name: "Timer Remaining"
+
+binary_sensor:
+  - platform: levoit_6000s
+    levoit_6000s_id: humidifier
+    water_tank_missing:
+      name: "Water Tank Missing"
+
+switch:
+  - platform: levoit_6000s
+    levoit_6000s_id: humidifier
+    power:
+      name: "Power"
+    display:
+      name: "Display"
+    child_lock:
+      name: "Child Lock"
+    auto_dry:
+      name: "Auto Dry"
+
+number:
+  - platform: levoit_6000s
+    levoit_6000s_id: humidifier
+    target_humidity:
+      name: "Target Humidity"
+      unit_of_measurement: "%"
+    mist_level:
+      name: "Mist Level"
+    timer:
+      name: "Timer"
+      unit_of_measurement: "min"
+
+select:
+  - platform: levoit_6000s
+    levoit_6000s_id: humidifier
+    mode:
+      name: "Mode"
 
 button:
-  - platform: template
-    name: "Query MCU Status (0x5531)"
-    on_press:
-      - lambda: |-
-          uint8_t frame[] = {0xA5, 0x22, 0x00, 0x04, 0x00, 0x00, 0x02, 0x31, 0x55, 0x00};
-          uint8_t cnt = id(frame_counter)++;
-          if (id(frame_counter) < 0x10) id(frame_counter) = 0x10;
-          frame[2] = cnt;
-          uint32_t sum = 0;
-          for (int i = 0; i < 10; i++) { if (i != 5) sum += frame[i]; }
-          frame[5] = 0xFF - (sum & 0xFF);
-          id(mcu_uart).write_array(frame, 10);
-
-  - platform: template
-    name: "Send WiFi Version (0xD010)"
-    on_press:
-      - lambda: |-
-          uint8_t frame[] = {0xA5, 0x22, 0x00, 0x0A, 0x00, 0x00,
-                             0x02, 0x10, 0xD0, 0x00,
-                             0x01, 0x01, 0x00, 0x02, 0x01, 0x00};
-          uint8_t cnt = id(frame_counter)++;
-          if (id(frame_counter) < 0x10) id(frame_counter) = 0x10;
-          frame[2] = cnt;
-          uint32_t sum = 0;
-          for (int i = 0; i < 16; i++) { if (i != 5) sum += frame[i]; }
-          frame[5] = 0xFF - (sum & 0xFF);
-          id(mcu_uart).write_array(frame, 16);
-
-  - platform: template
-    name: "Power ON (0x5000)"
-    on_press:
-      - lambda: |-
-          uint8_t frame[] = {0xA5, 0x22, 0x00, 0x07, 0x00, 0x00,
-                             0x02, 0x00, 0x50, 0x00,
-                             0x01, 0x01, 0x01};
-          uint8_t cnt = id(frame_counter)++;
-          if (id(frame_counter) < 0x10) id(frame_counter) = 0x10;
-          frame[2] = cnt;
-          uint32_t sum = 0;
-          for (size_t i = 0; i < sizeof(frame); i++) { if (i != 5) sum += frame[i]; }
-          frame[5] = 0xFF - (sum & 0xFF);
-          id(mcu_uart).write_array(frame, sizeof(frame));
-
-interval:
-  - interval: 1s
-    then:
-      - lambda: |-
-          static int tick = 0;
-          tick++;
-          if (tick == 30) {
-            ESP_LOGW("mcu", "=== 30s passive done, sending wifi_ver ===");
-            uint8_t f1[] = {0xA5, 0x22, 0x10, 0x0A, 0x00, 0x00,
-                            0x02, 0x10, 0xD0, 0x00,
-                            0x01, 0x01, 0x00, 0x02, 0x01, 0x00};
-            uint32_t sum = 0;
-            for (int i = 0; i < 16; i++) { if (i != 5) sum += f1[i]; }
-            f1[5] = 0xFF - (sum & 0xFF);
-            id(mcu_uart).write_array(f1, 16);
-          } else if (tick == 35) {
-            ESP_LOGW("mcu", "=== sending status query ===");
-            uint8_t f2[] = {0xA5, 0x22, 0x11, 0x04, 0x00, 0x00, 0x02, 0x31, 0x55, 0x00};
-            uint32_t sum = 0;
-            for (int i = 0; i < 10; i++) { if (i != 5) sum += f2[i]; }
-            f2[5] = 0xFF - (sum & 0xFF);
-            id(mcu_uart).write_array(f2, 10);
-          } else if (tick > 35 && tick % 10 == 0) {
-            uint8_t f[] = {0xA5, 0x22, 0x00, 0x04, 0x00, 0x00, 0x02, 0x31, 0x55, 0x00};
-            uint8_t cnt = id(frame_counter)++;
-            if (id(frame_counter) < 0x10) id(frame_counter) = 0x10;
-            f[2] = cnt;
-            uint32_t sum = 0;
-            for (int i = 0; i < 10; i++) { if (i != 5) sum += f[i]; }
-            f[5] = 0xFF - (sum & 0xFF);
-            id(mcu_uart).write_array(f, 10);
-          }
+  - platform: levoit_6000s
+    levoit_6000s_id: humidifier
+    reset_filter:
+      name: "Reset Filter"
