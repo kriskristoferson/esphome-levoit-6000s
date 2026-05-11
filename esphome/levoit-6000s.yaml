@@ -1,6 +1,15 @@
 esphome:
   name: levoit-6000s
   friendly_name: Levoit Superior 6000S
+  platformio_options:
+    board_build.flash_mode: dio
+  includes:
+    - usb_disable.h
+  on_boot:
+    priority: 600
+    then:
+      - lambda: |-
+          ESP_LOGW("mcu", "=== BOOT: passive listen for 30s, then wifi_ver + query ===");
 
 esp32:
   board: esp32-c3-devkitc-02
@@ -18,6 +27,7 @@ wifi:
 logger:
   level: DEBUG
   baud_rate: 0
+  hardware_uart: UART1
 
 api:
   encryption:
@@ -30,26 +40,109 @@ ota:
 captive_portal:
 
 globals:
-  - id: counter
+  - id: frame_counter
     type: uint8_t
-    initial_value: '0x10'
+    initial_value: '0x12'
 
 uart:
   - id: mcu_uart
-    tx_pin: GPIO6
-    rx_pin: GPIO0
+    tx_pin: GPIO19
+    rx_pin: GPIO18
     baud_rate: 115200
     debug:
       direction: BOTH
       dummy_receiver: true
       after:
-        timeout: 200ms
+        timeout: 50ms
       sequence:
         - lambda: |-
-            UARTDebug::log_hex(direction, bytes, ',');
+            char dir = direction == uart::UART_DIRECTION_TX ? '>' : '<';
+            std::string hex_str;
+            char buf[4];
+            for (size_t i = 0; i < bytes.size(); i++) {
+              snprintf(buf, sizeof(buf), "%02X", bytes[i]);
+              if (i > 0) hex_str += ',';
+              hex_str += buf;
+            }
+            if (direction == uart::UART_DIRECTION_RX) {
+              ESP_LOGW("uart_rx", "<<< [%d bytes] %s", bytes.size(), hex_str.c_str());
+            } else {
+              ESP_LOGI("uart_tx", ">>> [%d bytes] %s", bytes.size(), hex_str.c_str());
+            }
+
+button:
+  - platform: template
+    name: "Query MCU Status (0x5531)"
+    on_press:
+      - lambda: |-
+          uint8_t frame[] = {0xA5, 0x22, 0x00, 0x04, 0x00, 0x00, 0x02, 0x31, 0x55, 0x00};
+          uint8_t cnt = id(frame_counter)++;
+          if (id(frame_counter) < 0x10) id(frame_counter) = 0x10;
+          frame[2] = cnt;
+          uint32_t sum = 0;
+          for (int i = 0; i < 10; i++) { if (i != 5) sum += frame[i]; }
+          frame[5] = 0xFF - (sum & 0xFF);
+          id(mcu_uart).write_array(frame, 10);
+
+  - platform: template
+    name: "Send WiFi Version (0xD010)"
+    on_press:
+      - lambda: |-
+          uint8_t frame[] = {0xA5, 0x22, 0x00, 0x0A, 0x00, 0x00,
+                             0x02, 0x10, 0xD0, 0x00,
+                             0x01, 0x01, 0x00, 0x02, 0x01, 0x00};
+          uint8_t cnt = id(frame_counter)++;
+          if (id(frame_counter) < 0x10) id(frame_counter) = 0x10;
+          frame[2] = cnt;
+          uint32_t sum = 0;
+          for (int i = 0; i < 16; i++) { if (i != 5) sum += frame[i]; }
+          frame[5] = 0xFF - (sum & 0xFF);
+          id(mcu_uart).write_array(frame, 16);
+
+  - platform: template
+    name: "Power ON (0x5000)"
+    on_press:
+      - lambda: |-
+          uint8_t frame[] = {0xA5, 0x22, 0x00, 0x07, 0x00, 0x00,
+                             0x02, 0x00, 0x50, 0x00,
+                             0x01, 0x01, 0x01};
+          uint8_t cnt = id(frame_counter)++;
+          if (id(frame_counter) < 0x10) id(frame_counter) = 0x10;
+          frame[2] = cnt;
+          uint32_t sum = 0;
+          for (size_t i = 0; i < sizeof(frame); i++) { if (i != 5) sum += frame[i]; }
+          frame[5] = 0xFF - (sum & 0xFF);
+          id(mcu_uart).write_array(frame, sizeof(frame));
 
 interval:
-  - interval: 30s
+  - interval: 1s
     then:
       - lambda: |-
-          ESP_LOGI("mcu", "Listening... no TX");
+          static int tick = 0;
+          tick++;
+          if (tick == 30) {
+            ESP_LOGW("mcu", "=== 30s passive done, sending wifi_ver ===");
+            uint8_t f1[] = {0xA5, 0x22, 0x10, 0x0A, 0x00, 0x00,
+                            0x02, 0x10, 0xD0, 0x00,
+                            0x01, 0x01, 0x00, 0x02, 0x01, 0x00};
+            uint32_t sum = 0;
+            for (int i = 0; i < 16; i++) { if (i != 5) sum += f1[i]; }
+            f1[5] = 0xFF - (sum & 0xFF);
+            id(mcu_uart).write_array(f1, 16);
+          } else if (tick == 35) {
+            ESP_LOGW("mcu", "=== sending status query ===");
+            uint8_t f2[] = {0xA5, 0x22, 0x11, 0x04, 0x00, 0x00, 0x02, 0x31, 0x55, 0x00};
+            uint32_t sum = 0;
+            for (int i = 0; i < 10; i++) { if (i != 5) sum += f2[i]; }
+            f2[5] = 0xFF - (sum & 0xFF);
+            id(mcu_uart).write_array(f2, 10);
+          } else if (tick > 35 && tick % 10 == 0) {
+            uint8_t f[] = {0xA5, 0x22, 0x00, 0x04, 0x00, 0x00, 0x02, 0x31, 0x55, 0x00};
+            uint8_t cnt = id(frame_counter)++;
+            if (id(frame_counter) < 0x10) id(frame_counter) = 0x10;
+            f[2] = cnt;
+            uint32_t sum = 0;
+            for (int i = 0; i < 10; i++) { if (i != 5) sum += f[i]; }
+            f[5] = 0xFF - (sum & 0xFF);
+            id(mcu_uart).write_array(f, 10);
+          }
