@@ -1,0 +1,55 @@
+esphome:
+  name: levoit-6000s
+  friendly_name: Levoit Superior 6000S
+
+esp32:
+  board: esp32-c3-devkitc-02
+  variant: esp32c3
+  framework:
+    type: esp-idf
+
+wifi:
+  ssid: "REDACTED-SSID"
+  password: "REDACTED-WIFI-PSK"
+  ap:
+    ssid: "Levoit-6000S-Fallback"
+    password: "REDACTED-AP-PASSWORD"
+
+logger:
+  level: DEBUG
+  baud_rate: 0
+
+api:
+  encryption:
+    key: !secret api_key
+
+ota:
+  - platform: esphome
+    password: "REDACTED-OTA-PASSWORD"
+
+captive_portal:
+
+globals:
+  - id: counter
+    type: uint8_t
+    initial_value: '0x10'
+
+uart:
+  - id: mcu_uart
+    tx_pin: GPIO6
+    rx_pin: GPIO0
+    baud_rate: 115200
+    debug:
+      direction: BOTH
+      dummy_receiver: true
+      after:
+        timeout: 200ms
+      sequence:
+        - lambda: |-
+            UARTDebug::log_hex(direction, bytes, ',');
+
+interval:
+  - interval: 30s
+    then:
+      - lambda: |-
+          ESP_LOGI("mcu", "Listening... no TX");
