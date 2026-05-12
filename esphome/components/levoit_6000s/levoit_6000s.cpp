@@ -133,6 +133,10 @@ void Levoit6000S::process_frame_(const uint8_t *frame, size_t len) {
 void Levoit6000S::parse_status_(const uint8_t *data, size_t len) {
   size_t i = 1;
   bool seen_power_key = false;
+  bool display_on = false;
+  bool device_running = false;
+  uint8_t work_mode = 0xFF;
+  uint8_t dry_level = 0;
   while (i + 2 <= len) {
     uint8_t key = data[i];
     uint8_t vlen = data[i + 1];
@@ -175,18 +179,21 @@ void Levoit6000S::parse_status_(const uint8_t *data, size_t len) {
       ESP_LOGD(TAG, "KLV 0x%02X [%u]", key, vlen);
 
     switch (key) {
-      case 0x01:  // Power (always 1 when plugged in — may not be controllable)
-#ifdef USE_SWITCH
-        if (switches_[0] && vlen >= 1 && switches_[0]->state != (val[0] != 0))
-          switches_[0]->publish_state(val[0] != 0);
-#endif
+      case 0x01:
         break;
 
       case 0x05:  // Display state: byte[1] = 0=off, 1=on
+        if (vlen >= 2)
+          display_on = (val[1] != 0);
 #ifdef USE_SWITCH
         if (switches_[1] && vlen >= 2 && switches_[1]->state != (val[1] != 0))
           switches_[1]->publish_state(val[1] != 0);
 #endif
+        break;
+
+      case 0x07:
+        if (vlen >= 1)
+          device_running = (val[0] != 0);
         break;
 
       case 0x08:  // Target humidity %
@@ -223,18 +230,9 @@ void Levoit6000S::parse_status_(const uint8_t *data, size_t len) {
 #endif
         break;
 
-      case 0x0C:  // Work mode: 1=Sleep, 5=Auto, 9=Manual
-#ifdef USE_SELECT
-        if (selects_[0] && vlen >= 1) {
-          std::string mode;
-          if (val[0] == 1) mode = "Sleep";
-          else if (val[0] == 5) mode = "Auto";
-          else if (val[0] == 9) mode = "Manual";
-          else break;
-          if (!selects_[0]->has_state() || selects_[0]->state != mode)
-            selects_[0]->publish_state(mode);
-        }
-#endif
+      case 0x0C:
+        if (vlen >= 1)
+          work_mode = val[0];
         break;
 
       case 0x11:  // Auto dry
@@ -244,7 +242,9 @@ void Levoit6000S::parse_status_(const uint8_t *data, size_t len) {
 #endif
         break;
 
-      case 0x14:  // Timer (5 bytes: remaining_secs LE16, flags[3])
+      case 0x14:  // Timer: bytes[0-1] LE16 remaining secs, byte[3] active, byte[4] dry level
+        if (vlen >= 5)
+          dry_level = val[4];
 #ifdef USE_SENSOR
         if (timer_remaining_ && vlen >= 5) {
           uint16_t secs = (uint16_t) val[0] | ((uint16_t) val[1] << 8);
@@ -298,6 +298,25 @@ void Levoit6000S::parse_status_(const uint8_t *data, size_t len) {
     }
     i += 2 + vlen;
   }
+
+#ifdef USE_SWITCH
+  bool power_on = device_running || display_on;
+  if (switches_[0] && switches_[0]->state != power_on)
+    switches_[0]->publish_state(power_on);
+#endif
+
+#ifdef USE_SELECT
+  if (selects_[0] && work_mode != 0xFF) {
+    std::string mode;
+    if (work_mode == 0 && !device_running && display_on)
+      mode = (dry_level == 0x02) ? "Filter Dry H" : "Filter Dry L";
+    else if (work_mode == 1) mode = "Sleep";
+    else if (work_mode == 5) mode = "Auto";
+    else if (work_mode == 9) mode = "Manual";
+    if (!mode.empty() && (!selects_[0]->has_state() || selects_[0]->state != mode))
+      selects_[0]->publish_state(mode);
+  }
+#endif
 }
 
 void Levoit6000S::send_command(uint16_t opcode) { send_command(opcode, nullptr, 0); }

@@ -16,6 +16,10 @@ void Levoit6000SSwitch::write_state(bool state) {
     return;
   uint8_t klv[] = {0x01, 0x01, (uint8_t)(state ? 1 : 0)};
   parent_->send_command(SWITCH_OPCODES[type_], klv, sizeof(klv));
+  if (type_ == 0 && !state) {
+    uint8_t off[] = {0x01, 0x01, 0x00};
+    parent_->send_command(0x500F, off, sizeof(off));
+  }
 }
 
 }  // namespace levoit_6000s

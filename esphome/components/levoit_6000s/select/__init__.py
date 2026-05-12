@@ -9,7 +9,7 @@ Levoit6000SSelect = levoit_6000s_ns.class_(
     "Levoit6000SSelect", select.Select, cg.Component
 )
 
-MODE_OPTIONS = ["Manual", "Auto", "Sleep"]
+MODE_OPTIONS = ["Manual", "Auto", "Sleep", "Filter Dry L", "Filter Dry H"]
 
 CONFIG_SCHEMA = cv.Schema(
     {
