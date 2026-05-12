@@ -72,12 +72,6 @@ sensor:
     timer_remaining:
       name: "Timer Remaining"
 
-binary_sensor:
-  - platform: levoit_6000s
-    levoit_6000s_id: humidifier
-    tank_removed:
-      name: "Tank Removed"
-
 switch:
   - platform: levoit_6000s
     levoit_6000s_id: humidifier
@@ -85,6 +79,8 @@ switch:
       name: "Power"
     display:
       name: "Display"
+    child_lock:
+      name: "Child Lock"
     auto_dry:
       name: "Auto Dry"
 

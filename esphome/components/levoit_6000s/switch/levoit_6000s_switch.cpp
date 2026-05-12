@@ -7,6 +7,7 @@ namespace levoit_6000s {
 static constexpr uint16_t SWITCH_OPCODES[] = {
     0x5000,  // POWER
     0x500F,  // DISPLAY
+    0x5140,  // CHILD_LOCK
     0x5546,  // AUTO_DRY
 };
 

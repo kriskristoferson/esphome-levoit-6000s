@@ -12,7 +12,8 @@ Levoit6000SSwitch = levoit_6000s_ns.class_(
 SWITCH_TYPES = {
     "power": 0,
     "display": 1,
-    "auto_dry": 2,
+    "child_lock": 2,
+    "auto_dry": 3,
 }
 
 SWITCH_SCHEMA = switch.switch_schema(Levoit6000SSwitch).extend(cv.COMPONENT_SCHEMA)

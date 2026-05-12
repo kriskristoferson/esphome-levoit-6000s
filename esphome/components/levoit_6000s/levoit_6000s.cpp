@@ -219,20 +219,17 @@ void Levoit6000S::parse_status_(const uint8_t *data, size_t len) {
 
       case 0x11:  // Auto dry
 #ifdef USE_SWITCH
-        if (switches_[2] && vlen >= 1 && switches_[2]->state != (val[0] != 0))
-          switches_[2]->publish_state(val[0] != 0);
+        if (switches_[3] && vlen >= 1 && switches_[3]->state != (val[0] != 0))
+          switches_[3]->publish_state(val[0] != 0);
 #endif
         break;
 
-      case 0x14:  // Timer (5 bytes: active_flag, remaining_seconds LE32)
+      case 0x14:  // Timer (5 bytes: remaining_secs LE16, flags[3])
 #ifdef USE_SENSOR
         if (timer_remaining_ && vlen >= 5) {
-          float hrs = 0;
-          if (val[0] != 0) {
-            uint32_t secs = (uint32_t) val[1] | ((uint32_t) val[2] << 8) |
-                            ((uint32_t) val[3] << 16) | ((uint32_t) val[4] << 24);
-            hrs = secs / 3600.0f;
-          }
+          uint16_t secs = (uint16_t) val[0] | ((uint16_t) val[1] << 8);
+          bool active = (val[3] == 0x01);
+          float hrs = active ? secs / 3600.0f : 0;
           if (!timer_remaining_->has_state() || timer_remaining_->state != hrs)
             timer_remaining_->publish_state(hrs);
         }
@@ -269,10 +266,10 @@ void Levoit6000S::parse_status_(const uint8_t *data, size_t len) {
 #endif
         break;
 
-      case 0x18:  // Tank present (0x00=present, nonzero=removed)
-#ifdef USE_BINARY_SENSOR
-        if (water_tank_missing_ && vlen >= 1)
-          water_tank_missing_->publish_state(val[0] != 0);
+      case 0x18:  // Child lock
+#ifdef USE_SWITCH
+        if (switches_[2] && vlen >= 1 && switches_[2]->state != (val[0] != 0))
+          switches_[2]->publish_state(val[0] != 0);
 #endif
         break;
 
@@ -349,7 +346,7 @@ void Levoit6000S::send_wifi_ver_() {
 
 #ifdef USE_SWITCH
 void Levoit6000S::register_switch(uint8_t type, switch_::Switch *sw) {
-  if (type < 3)
+  if (type < 4)
     switches_[type] = sw;
 }
 #endif
