@@ -5,6 +5,13 @@ esphome:
     board_build.flash_mode: dio
   includes:
     - usb_disable.h
+  on_boot:
+    priority: 999
+    then:
+      - lambda: |-
+          #include "soc/usb_serial_jtag_reg.h"
+          volatile uint32_t *conf0 = (volatile uint32_t *)USB_SERIAL_JTAG_CONF0_REG;
+          *conf0 &= ~USB_SERIAL_JTAG_USB_PAD_ENABLE;
 
 esp32:
   board: esp32-c3-devkitc-02
@@ -68,8 +75,8 @@ sensor:
 binary_sensor:
   - platform: levoit_6000s
     levoit_6000s_id: humidifier
-    water_tank_missing:
-      name: "Water Tank Missing"
+    tank_removed:
+      name: "Tank Removed"
 
 switch:
   - platform: levoit_6000s
@@ -78,8 +85,6 @@ switch:
       name: "Power"
     display:
       name: "Display"
-    child_lock:
-      name: "Child Lock"
     auto_dry:
       name: "Auto Dry"
 
@@ -89,11 +94,9 @@ number:
     target_humidity:
       name: "Target Humidity"
       unit_of_measurement: "%"
-    mist_level:
-      name: "Mist Level"
     timer:
       name: "Timer"
-      unit_of_measurement: "min"
+      unit_of_measurement: "h"
 
 select:
   - platform: levoit_6000s

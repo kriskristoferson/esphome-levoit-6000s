@@ -9,7 +9,6 @@ namespace esphome {
 namespace levoit_6000s {
 
 static const char *const TAG = "levoit_6000s";
-static const char *const MODE_STRINGS[] = {"Manual", "Auto", "Sleep"};
 
 void Levoit6000S::setup() {
   // Disable USB-SERIAL-JTAG pads and re-route UART0 to GPIO18/19.
@@ -83,7 +82,7 @@ void Levoit6000S::loop() {
   }
 
   uint32_t now = millis();
-  if (init_done_ && now - last_query_ >= 10000) {
+  if (now - last_query_ >= 10000) {
     last_query_ = now;
     send_command(0x5531);
   }
@@ -95,6 +94,17 @@ void Levoit6000S::process_frame_(const uint8_t *frame, size_t len) {
 
   uint8_t msg_type = frame[1];
   uint16_t opcode = ((uint16_t) frame[8] << 8) | frame[7];
+
+  // Log every frame with hex payload
+  if (msg_type != 0x12) {
+    char hex[256];
+    size_t pos = 0;
+    for (size_t i = 10; i < len && pos < sizeof(hex) - 4; i++)
+      pos += snprintf(hex + pos, sizeof(hex) - pos, "%02X ", frame[i]);
+    hex[pos] = 0;
+    ESP_LOGI(TAG, "FRAME type=0x%02X op=0x%04X len=%u payload=[%s]",
+             msg_type, opcode, (unsigned)(len - 10), hex);
+  }
 
   if (msg_type == 0x22 && opcode == 0x5530) {
     if (len > 10)
@@ -108,6 +118,8 @@ void Levoit6000S::process_frame_(const uint8_t *frame, size_t len) {
     send_ack_(opcode);
   } else if (msg_type == 0x22 && opcode == 0x501B) {
     send_ack_(opcode);
+  } else if (msg_type == 0x22) {
+    send_ack_(opcode);
   } else if (msg_type == 0x12) {
     ESP_LOGV(TAG, "MCU ACK for opcode 0x%04X", opcode);
   } else if (msg_type == 0x52) {
@@ -119,7 +131,6 @@ void Levoit6000S::process_frame_(const uint8_t *frame, size_t len) {
 }
 
 void Levoit6000S::parse_status_(const uint8_t *data, size_t len) {
-  // KLV payload has a 1-byte prefix before the key-length-value entries
   size_t i = 1;
   while (i + 2 <= len) {
     uint8_t key = data[i];
@@ -132,28 +143,29 @@ void Levoit6000S::parse_status_(const uint8_t *data, size_t len) {
     }
     const uint8_t *val = data + i + 2;
 
+    if (vlen == 1)
+      ESP_LOGD(TAG, "KLV 0x%02X = %u", key, val[0]);
+    else if (vlen == 2)
+      ESP_LOGD(TAG, "KLV 0x%02X [%u] = %02X %02X", key, vlen, val[0], val[1]);
+    else if (vlen <= 6)
+      ESP_LOGD(TAG, "KLV 0x%02X [%u] = %02X %02X %02X %02X %02X %02X", key, vlen,
+               val[0], vlen > 1 ? val[1] : 0, vlen > 2 ? val[2] : 0,
+               vlen > 3 ? val[3] : 0, vlen > 4 ? val[4] : 0, vlen > 5 ? val[5] : 0);
+    else
+      ESP_LOGD(TAG, "KLV 0x%02X [%u]", key, vlen);
+
     switch (key) {
-      case 0x01:  // Power
+      case 0x01:  // Power (always 1 when plugged in — may not be controllable)
 #ifdef USE_SWITCH
         if (switches_[0] && vlen >= 1 && switches_[0]->state != (val[0] != 0))
           switches_[0]->publish_state(val[0] != 0);
 #endif
         break;
 
-      case 0x04:  // Mode (0=Manual, 1=Auto, 2=Sleep — hypothesis)
-#ifdef USE_SELECT
-        if (selects_[0] && vlen >= 1 && val[0] < 3) {
-          std::string mode = MODE_STRINGS[val[0]];
-          if (!selects_[0]->has_state() || selects_[0]->state != mode)
-            selects_[0]->publish_state(mode);
-        }
-#endif
-        break;
-
-      case 0x07:  // Child lock
+      case 0x05:  // Display state: byte[1] = 0=off, 1=on
 #ifdef USE_SWITCH
-        if (switches_[2] && vlen >= 1 && switches_[2]->state != (val[0] != 0))
-          switches_[2]->publish_state(val[0] != 0);
+        if (switches_[1] && vlen >= 2 && switches_[1]->state != (val[1] != 0))
+          switches_[1]->publish_state(val[1] != 0);
 #endif
         break;
 
@@ -168,6 +180,8 @@ void Levoit6000S::parse_status_(const uint8_t *data, size_t len) {
         break;
 
       case 0x09:  // Current humidity %
+        if (vlen >= 1)
+          last_humidity_ = val[0];
 #ifdef USE_SENSOR
         if (current_humidity_ && vlen >= 1) {
           float v = val[0];
@@ -177,7 +191,9 @@ void Levoit6000S::parse_status_(const uint8_t *data, size_t len) {
 #endif
         break;
 
-      case 0x0A:  // Current temp °C
+      case 0x0A:  // Current temp
+        if (vlen >= 1)
+          last_temp_ = val[0];
 #ifdef USE_SENSOR
         if (current_temp_ && vlen >= 1) {
           float v = val[0];
@@ -187,38 +203,38 @@ void Levoit6000S::parse_status_(const uint8_t *data, size_t len) {
 #endif
         break;
 
-      case 0x0C:  // Display on/off
-#ifdef USE_SWITCH
-        if (switches_[1] && vlen >= 1 && switches_[1]->state != (val[0] != 0))
-          switches_[1]->publish_state(val[0] != 0);
+      case 0x0C:  // Work mode: 1=Sleep, 5=Auto, 9=Manual
+#ifdef USE_SELECT
+        if (selects_[0] && vlen >= 1) {
+          std::string mode;
+          if (val[0] == 1) mode = "Sleep";
+          else if (val[0] == 5) mode = "Auto";
+          else if (val[0] == 9) mode = "Manual";
+          else break;
+          if (!selects_[0]->has_state() || selects_[0]->state != mode)
+            selects_[0]->publish_state(mode);
+        }
 #endif
         break;
 
       case 0x11:  // Auto dry
 #ifdef USE_SWITCH
-        if (switches_[3] && vlen >= 1 && switches_[3]->state != (val[0] != 0))
-          switches_[3]->publish_state(val[0] != 0);
+        if (switches_[2] && vlen >= 1 && switches_[2]->state != (val[0] != 0))
+          switches_[2]->publish_state(val[0] != 0);
 #endif
         break;
 
-      case 0x13:  // Mist level
-#ifdef USE_NUMBER
-        if (numbers_[1] && vlen >= 1) {
-          float v = val[0];
-          if (!numbers_[1]->has_state() || numbers_[1]->state != v)
-            numbers_[1]->publish_state(v);
-        }
-#endif
-        break;
-
-      case 0x14:  // Timer (5 bytes: flag, remaining_seconds LE32)
+      case 0x14:  // Timer (5 bytes: active_flag, remaining_seconds LE32)
 #ifdef USE_SENSOR
         if (timer_remaining_ && vlen >= 5) {
-          uint32_t secs = (uint32_t) val[1] | ((uint32_t) val[2] << 8) |
-                          ((uint32_t) val[3] << 16) | ((uint32_t) val[4] << 24);
-          float mins = secs / 60.0f;
-          if (!timer_remaining_->has_state() || timer_remaining_->state != mins)
-            timer_remaining_->publish_state(mins);
+          float hrs = 0;
+          if (val[0] != 0) {
+            uint32_t secs = (uint32_t) val[1] | ((uint32_t) val[2] << 8) |
+                            ((uint32_t) val[3] << 16) | ((uint32_t) val[4] << 24);
+            hrs = secs / 3600.0f;
+          }
+          if (!timer_remaining_->has_state() || timer_remaining_->state != hrs)
+            timer_remaining_->publish_state(hrs);
         }
 #endif
         break;
@@ -253,10 +269,10 @@ void Levoit6000S::parse_status_(const uint8_t *data, size_t len) {
 #endif
         break;
 
-      case 0x18:  // Water tank (0x00 = missing/removed)
+      case 0x18:  // Tank present (0x00=present, nonzero=removed)
 #ifdef USE_BINARY_SENSOR
         if (water_tank_missing_ && vlen >= 1)
-          water_tank_missing_->publish_state(val[0] == 0);
+          water_tank_missing_->publish_state(val[0] != 0);
 #endif
         break;
 
@@ -301,6 +317,9 @@ void Levoit6000S::send_command(uint16_t opcode, const uint8_t *klv, size_t klv_l
   ESP_LOGD(TAG, "TX: opcode=0x%04X klv_len=%u", opcode, (unsigned) klv_len);
   uart_write_bytes(UART_NUM_0, frame, frame_len);
   uart_wait_tx_done(UART_NUM_0, pdMS_TO_TICKS(100));
+
+  if (klv_len > 0)
+    send_command(0x5531);
 }
 
 void Levoit6000S::send_ack_(uint16_t opcode) {
@@ -330,14 +349,14 @@ void Levoit6000S::send_wifi_ver_() {
 
 #ifdef USE_SWITCH
 void Levoit6000S::register_switch(uint8_t type, switch_::Switch *sw) {
-  if (type < 4)
+  if (type < 3)
     switches_[type] = sw;
 }
 #endif
 
 #ifdef USE_NUMBER
 void Levoit6000S::register_number(uint8_t type, number::Number *num) {
-  if (type < 3)
+  if (type < 2)
     numbers_[type] = num;
 }
 #endif

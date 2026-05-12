@@ -76,13 +76,13 @@ class Levoit6000S : public Component, public uart::UARTDevice {
 #endif
 
 #ifdef USE_SWITCH
-  // 0=POWER, 1=DISPLAY, 2=CHILD_LOCK, 3=AUTO_DRY
-  switch_::Switch *switches_[4]{nullptr};
+  // 0=POWER, 1=DISPLAY, 2=AUTO_DRY
+  switch_::Switch *switches_[3]{nullptr};
 #endif
 
 #ifdef USE_NUMBER
-  // 0=TARGET_HUMIDITY, 1=MIST_LEVEL, 2=TIMER
-  number::Number *numbers_[3]{nullptr};
+  // 0=TARGET_HUMIDITY, 1=TIMER
+  number::Number *numbers_[2]{nullptr};
 #endif
 
 #ifdef USE_SELECT
@@ -94,8 +94,11 @@ class Levoit6000S : public Component, public uart::UARTDevice {
   size_t buf_len_{0};
   uint8_t counter_{0x10};
   uint32_t last_query_{0};
+  uint32_t last_temp_push_{0};
   bool wifi_ver_sent_{false};
   bool init_done_{false};
+  uint8_t last_humidity_{0};
+  uint8_t last_temp_{0};
 };
 
 }  // namespace levoit_6000s

@@ -11,8 +11,7 @@ Levoit6000SNumber = levoit_6000s_ns.class_(
 
 NUMBER_CONFIGS = {
     "target_humidity": {"type_id": 0, "min": 30, "max": 80, "step": 1},
-    "mist_level": {"type_id": 1, "min": 1, "max": 9, "step": 1},
-    "timer": {"type_id": 2, "min": 0, "max": 720, "step": 30},
+    "timer": {"type_id": 1, "min": 0, "max": 12, "step": 1},
 }
 
 CONFIG_SCHEMA = cv.Schema(

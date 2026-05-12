@@ -7,7 +7,6 @@ namespace levoit_6000s {
 static constexpr uint16_t SWITCH_OPCODES[] = {
     0x5000,  // POWER
     0x500F,  // DISPLAY
-    0x5140,  // CHILD_LOCK
     0x5546,  // AUTO_DRY
 };
 
@@ -16,7 +15,6 @@ void Levoit6000SSwitch::write_state(bool state) {
     return;
   uint8_t klv[] = {0x01, 0x01, (uint8_t)(state ? 1 : 0)};
   parent_->send_command(SWITCH_OPCODES[type_], klv, sizeof(klv));
-  publish_state(state);
 }
 
 }  // namespace levoit_6000s
