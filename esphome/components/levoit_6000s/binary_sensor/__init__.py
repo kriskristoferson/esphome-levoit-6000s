@@ -7,6 +7,7 @@ from .. import Levoit6000S, CONF_LEVOIT_6000S_ID
 DEPENDENCIES = ["levoit_6000s"]
 
 BINARY_SENSORS = {
+    "water_tank_missing": ("set_water_tank_missing_sensor", DEVICE_CLASS_PROBLEM),
 }
 
 CONFIG_SCHEMA = cv.Schema(

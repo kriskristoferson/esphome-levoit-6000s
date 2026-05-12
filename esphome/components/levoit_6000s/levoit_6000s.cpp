@@ -132,9 +132,29 @@ void Levoit6000S::process_frame_(const uint8_t *frame, size_t len) {
 
 void Levoit6000S::parse_status_(const uint8_t *data, size_t len) {
   size_t i = 1;
+  bool seen_power_key = false;
   while (i + 2 <= len) {
     uint8_t key = data[i];
     uint8_t vlen = data[i + 1];
+
+    // Second key=0x01 is a fixed 2-byte tank presence flag (not standard KLV).
+    // Its second byte is 0x00=present, 0x01=missing. Without this, vlen=1 eats
+    // the next key byte and misaligns all subsequent entries.
+    if (key == 0x01 && seen_power_key) {
+#ifdef USE_BINARY_SENSOR
+      if (water_tank_missing_) {
+        bool missing = (data[i + 1] != 0);
+        if (!water_tank_missing_->has_state() || water_tank_missing_->state != missing)
+          water_tank_missing_->publish_state(missing);
+      }
+#endif
+      ESP_LOGD(TAG, "Tank flag = %u (0=present, 1=missing)", data[i + 1]);
+      i += 2;
+      continue;
+    }
+    if (key == 0x01)
+      seen_power_key = true;
+
     if (i + 2 + vlen > len)
       break;
     if (vlen == 0) {

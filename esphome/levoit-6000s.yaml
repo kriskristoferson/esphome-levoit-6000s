@@ -94,6 +94,12 @@ number:
       name: "Timer"
       unit_of_measurement: "h"
 
+binary_sensor:
+  - platform: levoit_6000s
+    levoit_6000s_id: humidifier
+    water_tank_missing:
+      name: "Water Tank Missing"
+
 select:
   - platform: levoit_6000s
     levoit_6000s_id: humidifier

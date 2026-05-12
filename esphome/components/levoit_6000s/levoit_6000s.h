@@ -41,6 +41,7 @@ class Levoit6000S : public Component, public uart::UARTDevice {
 #endif
 
 #ifdef USE_BINARY_SENSOR
+  void set_water_tank_missing_sensor(binary_sensor::BinarySensor *s) { water_tank_missing_ = s; }
 #endif
 
 #ifdef USE_SWITCH
@@ -71,6 +72,7 @@ class Levoit6000S : public Component, public uart::UARTDevice {
 #endif
 
 #ifdef USE_BINARY_SENSOR
+  binary_sensor::BinarySensor *water_tank_missing_{nullptr};
 #endif
 
 #ifdef USE_SWITCH
