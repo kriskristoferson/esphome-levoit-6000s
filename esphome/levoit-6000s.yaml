@@ -3,15 +3,6 @@ esphome:
   friendly_name: Levoit Superior 6000S
   platformio_options:
     board_build.flash_mode: dio
-  includes:
-    - usb_disable.h
-  on_boot:
-    priority: 999
-    then:
-      - lambda: |-
-          #include "soc/usb_serial_jtag_reg.h"
-          volatile uint32_t *conf0 = (volatile uint32_t *)USB_SERIAL_JTAG_CONF0_REG;
-          *conf0 &= ~USB_SERIAL_JTAG_USB_PAD_ENABLE;
 
 esp32:
   board: esp32-c3-devkitc-02
@@ -46,68 +37,210 @@ ota:
 
 captive_portal:
 
-uart:
-  - id: mcu_uart
-    tx_pin: GPIO19
-    rx_pin: GPIO18
-    baud_rate: 115200
-
 levoit_6000s:
-  id: humidifier
-  uart_id: mcu_uart
+  id: levoit_hub
+
+interval:
+  - interval: 200ms
+    then:
+      - lambda: |-
+          using levoit_6000s::Levoit6000S;
+          auto *h = Levoit6000S::instance;
+          if (!h || !h->state_dirty) return;
+          h->state_dirty = false;
+          if (!std::isnan(h->humidity)) id(current_humidity).publish_state(h->humidity);
+          if (!std::isnan(h->temperature)) id(current_temp).publish_state(h->temperature);
+          if (!std::isnan(h->fan_speed)) id(fan_speed).publish_state(h->fan_speed);
+          if (!std::isnan(h->target_humidity)) id(target_humidity).publish_state(h->target_humidity);
+          if (!std::isnan(h->filter_life_pct)) id(filter_life_pct).publish_state(h->filter_life_pct);
+          if (!std::isnan(h->filter_life_days)) id(filter_life_days).publish_state(h->filter_life_days);
+          if (!std::isnan(h->timer_remaining)) id(timer_remaining).publish_state(h->timer_remaining);
+          id(water_tank_missing).publish_state(h->water_tank_missing);
+          id(power).publish_state(h->power_on);
+          id(display_sw).publish_state(h->display_on);
+          id(child_lock).publish_state(h->child_lock);
+          if (!h->work_mode.empty()) id(mode).publish_state(h->work_mode);
 
 sensor:
-  - platform: levoit_6000s
-    levoit_6000s_id: humidifier
-    current_humidity:
-      name: "Current Humidity"
-    current_temp:
-      name: "Current Temperature"
-    fan_speed:
-      name: "Fan Speed"
-    filter_life_pct:
-      name: "Filter Life"
-    filter_life_days:
-      name: "Filter Life Days"
-    timer_remaining:
-      name: "Timer Remaining"
+  - platform: template
+    name: "Current Humidity"
+    id: current_humidity
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    state_class: measurement
 
-switch:
-  - platform: levoit_6000s
-    levoit_6000s_id: humidifier
-    power:
-      name: "Power"
-    display:
-      name: "Display"
-    child_lock:
-      name: "Child Lock"
-    auto_dry:
-      name: "Auto Dry"
+  - platform: template
+    name: "Current Temperature"
+    id: current_temp
+    unit_of_measurement: "°C"
+    accuracy_decimals: 0
+    state_class: measurement
 
-number:
-  - platform: levoit_6000s
-    levoit_6000s_id: humidifier
-    target_humidity:
-      name: "Target Humidity"
-      unit_of_measurement: "%"
-    timer:
-      name: "Timer"
-      unit_of_measurement: "h"
+  - platform: template
+    name: "Fan Speed"
+    id: fan_speed
+    accuracy_decimals: 0
+
+  - platform: template
+    name: "Filter Life"
+    id: filter_life_pct
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+
+  - platform: template
+    name: "Filter Life Days"
+    id: filter_life_days
+    unit_of_measurement: "days"
+    accuracy_decimals: 0
+
+  - platform: template
+    name: "Timer Remaining"
+    id: timer_remaining
+    unit_of_measurement: "h"
+    accuracy_decimals: 1
 
 binary_sensor:
-  - platform: levoit_6000s
-    levoit_6000s_id: humidifier
-    water_tank_missing:
-      name: "Water Tank Missing"
+  - platform: template
+    name: "Water Tank Missing"
+    id: water_tank_missing
+
+switch:
+  - platform: template
+    name: "Power"
+    id: power
+    optimistic: true
+    restore_mode: DISABLED
+    turn_on_action:
+      - lambda: |-
+          auto *hub = levoit_6000s::Levoit6000S::instance;
+          if (!hub) return;
+          uint8_t klv[] = {0x01, 0x01, 0x01};
+          hub->send_command(0x5000, klv, sizeof(klv));
+    turn_off_action:
+      - lambda: |-
+          auto *hub = levoit_6000s::Levoit6000S::instance;
+          if (!hub) return;
+          uint8_t klv[] = {0x01, 0x01, 0x00};
+          hub->send_command(0x5000, klv, sizeof(klv));
+
+  - platform: template
+    name: "Display"
+    id: display_sw
+    optimistic: true
+    restore_mode: DISABLED
+    turn_on_action:
+      - lambda: |-
+          auto *hub = levoit_6000s::Levoit6000S::instance;
+          if (!hub) return;
+          uint8_t klv[] = {0x01, 0x01, 0x01};
+          hub->send_command(0x500F, klv, sizeof(klv));
+    turn_off_action:
+      - lambda: |-
+          auto *hub = levoit_6000s::Levoit6000S::instance;
+          if (!hub) return;
+          uint8_t klv[] = {0x01, 0x01, 0x00};
+          hub->send_command(0x500F, klv, sizeof(klv));
+
+  - platform: template
+    name: "Child Lock"
+    id: child_lock
+    optimistic: true
+    restore_mode: DISABLED
+    turn_on_action:
+      - lambda: |-
+          auto *hub = levoit_6000s::Levoit6000S::instance;
+          if (!hub) return;
+          uint8_t klv[] = {0x01, 0x01, 0x01};
+          hub->send_command(0x5140, klv, sizeof(klv));
+    turn_off_action:
+      - lambda: |-
+          auto *hub = levoit_6000s::Levoit6000S::instance;
+          if (!hub) return;
+          uint8_t klv[] = {0x01, 0x01, 0x00};
+          hub->send_command(0x5140, klv, sizeof(klv));
+
+number:
+  - platform: template
+    name: "Target Humidity"
+    id: target_humidity
+    min_value: 30
+    max_value: 80
+    step: 1
+    unit_of_measurement: "%"
+    optimistic: true
+    restore_value: false
+    set_action:
+      - lambda: |-
+          auto *hub = levoit_6000s::Levoit6000S::instance;
+          if (!hub) return;
+          uint8_t klv[] = {0x01, 0x01, (uint8_t)x};
+          hub->send_command(0x5536, klv, sizeof(klv));
+
+  - platform: template
+    name: "Timer"
+    id: timer_set
+    min_value: 0
+    max_value: 12
+    step: 1
+    unit_of_measurement: "h"
+    optimistic: true
+    restore_value: false
+    set_action:
+      - lambda: |-
+          auto *hub = levoit_6000s::Levoit6000S::instance;
+          if (!hub) return;
+          uint32_t secs = (uint32_t)x * 3600;
+          uint8_t klv[] = {0x01, 0x04,
+            (uint8_t)(secs & 0xFF), (uint8_t)((secs >> 8) & 0xFF),
+            (uint8_t)((secs >> 16) & 0xFF), (uint8_t)((secs >> 24) & 0xFF)};
+          hub->send_command(0x5019, klv, sizeof(klv));
 
 select:
-  - platform: levoit_6000s
-    levoit_6000s_id: humidifier
-    mode:
-      name: "Mode"
+  - platform: template
+    name: "Mode"
+    id: mode
+    options:
+      - "Manual"
+      - "Auto"
+      - "Sleep"
+      - "Filter Dry"
+    optimistic: true
+    restore_value: false
+    set_action:
+      - lambda: |-
+          auto *hub = levoit_6000s::Levoit6000S::instance;
+          if (!hub) return;
+          uint8_t v;
+          if (x == "Manual") v = 9;
+          else if (x == "Auto") v = 5;
+          else if (x == "Sleep") v = 1;
+          else if (x == "Filter Dry") v = 0;
+          else return;
+          uint8_t klv[] = {0x01, 0x01, v};
+          hub->send_command(0x5537, klv, sizeof(klv));
 
 button:
-  - platform: levoit_6000s
-    levoit_6000s_id: humidifier
-    reset_filter:
-      name: "Reset Filter"
+  - platform: template
+    name: "Reset Filter"
+    on_press:
+      - lambda: |-
+          auto *hub = levoit_6000s::Levoit6000S::instance;
+          if (hub) hub->send_command(0x5544);
+
+  - platform: template
+    name: "Dry Level High"
+    on_press:
+      - lambda: |-
+          auto *hub = levoit_6000s::Levoit6000S::instance;
+          if (!hub) return;
+          uint8_t klv[] = {0x02, 0x01, 0x02};
+          hub->send_command(0x5546, klv, sizeof(klv));
+
+  - platform: template
+    name: "Dry Level Low"
+    on_press:
+      - lambda: |-
+          auto *hub = levoit_6000s::Levoit6000S::instance;
+          if (!hub) return;
+          uint8_t klv[] = {0x02, 0x01, 0x01};
+          hub->send_command(0x5546, klv, sizeof(klv));
