@@ -42,7 +42,7 @@ api:
 
 ota:
   - platform: esphome
-    password: "REDACTED-OTA-PASSWORD"
+    password: !secret ota_password
 
 captive_portal:
 

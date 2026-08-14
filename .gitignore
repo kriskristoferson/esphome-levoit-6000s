@@ -1,37 +1,80 @@
-# Firmware dumps (large binaries)
-*.bin
-!research/lan_intercept.py
+# ---------------------------------------------------------------------------
+# Secrets. Nothing matching these may ever be committed.
+# ---------------------------------------------------------------------------
+secrets.yaml
+*.pem
+*.key
+*.crt
+*.p12
+.env
+.env.*
 
-# Ghidra project (2.7GB)
-research/ghidra_project/
+# ---------------------------------------------------------------------------
+# Personal / local capture artifacts
+# ---------------------------------------------------------------------------
+.DS_Store
+screenlog.*
+hardcopy.*
+boot.log
+pics/
+*.pcap
+*.pcapng
 
-# VeSync iOS app bundle (350MB)
-research/VeSync.app/
+# ---------------------------------------------------------------------------
+# Agent / AI working files. These stay local.
+# ---------------------------------------------------------------------------
+.claude/
+.remember/
+.superpowers/
+CLAUDE.md
+AGENTS.md
+GEMINI.md
+SESSION_RESUME.md
+docs/plans/
 
-# Ghidra analysis logs
-research/ghidra_analysis.log
-
-# Python
+# ---------------------------------------------------------------------------
+# Build output and environments
+# ---------------------------------------------------------------------------
 .venv/
 __pycache__/
 *.pyc
+esphome/.esphome/
+esphome/build/
 
-# Research venv
-research/.venv/
-
-# DS_Store
-.DS_Store
-
-# IDE
-.claude/
-
-# Screen logs
-screenlog.*
-hardcopy.*
-
-# ESPHome cloned repos (can re-clone)
+# Reference clones of other people's repos, kept locally for comparison.
 esphome-levoit-air-purifier/
 esphome-projects/
 
-# Keys (sensitive)
-research/ble_rsa_privkey.pem
+# ---------------------------------------------------------------------------
+# Vendor material. Firmware images, disassembler databases and decompiler
+# output are derived from Levoit/VeSync copyrighted code and are not
+# redistributed here.
+# ---------------------------------------------------------------------------
+*.bin
+*.bndb
+*.gpr
+*.rep
+*.pdf
+VeSync.app/
+ghidra_project/
+ghidra_decompiled.txt
+*.log
+
+# ---------------------------------------------------------------------------
+# research/ is allowlisted, not denylisted: only the logic-analyzer captures
+# and the decoder are published. Everything else in that directory is local
+# working material (exploit scripts, BLE probes, vendor binaries) and must
+# stay untracked even if a new file appears there later.
+# ---------------------------------------------------------------------------
+# Local probe tooling. These embed a live API key and target debug logging the
+# component no longer emits, so they are not published.
+/watch_klv_changes.py
+esphome/mcu_probe.py
+esphome/test_cmd.py
+
+research/*
+!research/README.md
+!research/decode_full.py
+!research/6000s_mcu_uart_*.csv
+!research/6000s_mcu_uart_*.sal
+!research/6000s_mcu_uart_*_decoded.txt
