@@ -418,8 +418,20 @@ class Levoit6000S : public Component {
 
     dry_minutes_left = filter_drying ? (dry_seconds_ / 60.0f) : NAN;
 
-    if (!std::isnan(fan_setpoint))
-      fan_level_name = level_name_(fan_raw_to_level((uint8_t) fan_setpoint));
+    // The select is a Manual control, and 0x15 only means anything in Manual --
+    // elsewhere it holds a stale setpoint the device is ignoring while it picks
+    // its own speed, which showed "High" next to an actual output of 5. Prefer
+    // what the fan is really doing whenever the device is choosing, and fall
+    // back to the setpoint only when there is nothing running to report.
+    uint8_t level_src = 0;
+    if (mode_raw == MODE_MANUAL && !std::isnan(fan_setpoint))
+      level_src = (uint8_t) fan_setpoint;
+    else if (!std::isnan(fan_actual) && fan_actual > 0)
+      level_src = (uint8_t) fan_actual;
+    else if (!std::isnan(fan_setpoint))
+      level_src = (uint8_t) fan_setpoint;
+    if (level_src > 0)
+      fan_level_name = level_name_(fan_raw_to_level(level_src));
 
     // Mode is whatever key 0x0B says, and nothing else. A dry cycle is not a
     // mode -- it runs on top of one -- and fan 0 only means the unit is idle,
