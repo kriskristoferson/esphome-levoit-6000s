@@ -32,6 +32,13 @@ logger:
 api:
   encryption:
     key: !secret levoit-6000s_api_key
+  # Entities are non-optimistic, so a fresh client would sit on "unknown" until
+  # the MCU's next unsolicited report (up to ~15 s). Poll instead, and force a
+  # full publish so every entity lands even if no value changed.
+  on_client_connected:
+    - lambda: |-
+        auto *hub = levoit_6000s::Levoit6000S::instance;
+        if (hub) { hub->publish_all = true; hub->request_status(); }
 
 ota:
   - platform: esphome
@@ -43,6 +50,10 @@ levoit_6000s:
   id: levoit_hub
 
 interval:
+  # Nothing here is optimistic: every entity below shows what the MCU last
+  # reported, never what we asked for. Publishes are gated on an actual change
+  # so a steady device does not rewrite 18 states every 11 s; publish_all
+  # forces one unconditional pass at boot and on each new API client.
   - interval: 200ms
     then:
       - lambda: |-
@@ -50,23 +61,64 @@ interval:
           auto *h = Levoit6000S::instance;
           if (!h || !h->state_dirty) return;
           h->state_dirty = false;
-          if (!std::isnan(h->humidity)) id(current_humidity).publish_state(h->humidity);
-          if (!std::isnan(h->temperature)) id(current_temp).publish_state(h->temperature);
-          if (!std::isnan(h->fan_speed)) id(fan_speed).publish_state(h->fan_speed);
-          if (!std::isnan(h->target_humidity)) id(target_humidity).publish_state(h->target_humidity);
-          if (!std::isnan(h->filter_life_pct)) id(filter_life_pct).publish_state(h->filter_life_pct);
-          if (!std::isnan(h->filter_life_days)) id(filter_life_days).publish_state(h->filter_life_days);
-          if (!std::isnan(h->timer_remaining)) id(timer_remaining).publish_state(h->timer_remaining);
-          id(water_tank_missing).publish_state(h->water_tank_missing);
-          id(low_water).publish_state(h->low_water);
-          id(humidifying).publish_state(h->output_running);
-          id(dry_water_shortage).publish_state(h->dry_on_water_shortage);
-          id(power).publish_state(h->power_on);
-          id(display_sw).publish_state(h->display_on);
-          id(child_lock).publish_state(h->child_lock);
-          // The Mode select is not optimistic: this is the only thing that
-          // moves it, so it always shows what the MCU actually reports.
-          if (!h->work_mode.empty()) id(mode_select).publish_state(h->work_mode);
+          bool full = h->publish_all;
+          h->publish_all = false;
+
+          // id() yields a pointer, so these take pointers.
+          auto pub_sensor = [&](sensor::Sensor *e, float v) {
+            if (!full && ((std::isnan(v) && std::isnan(e->state)) || e->state == v)) return;
+            e->publish_state(v);
+          };
+          auto pub_number = [&](number::Number *e, float v) {
+            if (std::isnan(v)) return;
+            if (!full && e->has_state() && e->state == v) return;
+            e->publish_state(v);
+          };
+          auto pub_binary = [&](binary_sensor::BinarySensor *e, bool v) {
+            if (!full && e->has_state() && e->state == v) return;
+            e->publish_state(v);
+          };
+          auto pub_switch = [&](switch_::Switch *e, bool v) {
+            if (!full && e->state == v) return;
+            e->publish_state(v);
+          };
+          // Select exposes its state as an index, not a string. index_of() also
+          // guards the publish: publish_state rejects any value that is not an
+          // option, so an unmapped mode name is dropped rather than logged as
+          // an error every frame.
+          auto pub_select = [&](select::Select *e, const std::string &v) {
+            if (v.empty()) return;
+            auto want = e->index_of(v);
+            if (!want.has_value()) return;
+            auto cur = e->active_index();
+            if (!full && cur.has_value() && *cur == *want) return;
+            e->publish_state(v);
+          };
+
+          pub_sensor(id(current_humidity), h->humidity);
+          pub_sensor(id(current_temp), h->temperature);
+          pub_sensor(id(fan_output), h->fan_actual);
+          pub_sensor(id(filter_life_pct), h->filter_life_pct);
+          pub_sensor(id(filter_life_days), h->filter_life_days);
+          // Deliberately publishes NAN when no dry cycle is running, so the
+          // entity reads "unknown" instead of a frozen leftover countdown.
+          pub_sensor(id(dry_remaining), h->dry_minutes_left);
+
+          pub_binary(id(water_tank_missing), h->water_tank_missing);
+          pub_binary(id(low_water), h->low_water);
+          pub_binary(id(humidifying), h->output_running);
+          pub_binary(id(filter_drying), h->filter_drying);
+
+          pub_switch(id(power), h->power_on);
+          pub_switch(id(display_sw), h->display_on);
+          pub_switch(id(child_lock), h->child_lock);
+          pub_switch(id(dry_water_shortage), h->dry_on_water_shortage);
+          pub_switch(id(dry_power_off), h->dry_on_power_off);
+
+          pub_number(id(target_humidity), h->target_humidity);
+
+          pub_select(id(mode_select), h->work_mode);
+          pub_select(id(fan_speed_select), h->fan_level_name);
 
 sensor:
   - platform: template
@@ -85,19 +137,16 @@ sensor:
     accuracy_decimals: 1
     state_class: measurement
 
+  # Key 0x0C: the fan that is actually turning, 0-9, and 0 whenever the unit is
+  # idle. The Fan Speed select below is the setpoint (key 0x15) and is the one
+  # to control from. These two diverge in Auto and only track in Manual.
   - platform: template
-    name: "Fan Speed"
-    id: fan_speed
+    name: "Fan Output"
+    id: fan_output
     icon: "mdi:fan"
     accuracy_decimals: 0
     state_class: measurement
-
-  - platform: template
-    name: "Timer Remaining"
-    id: timer_remaining
-    unit_of_measurement: "h"
-    icon: "mdi:timer-outline"
-    accuracy_decimals: 2
+    entity_category: diagnostic
 
   # Key 0x17: read 65, and a filter reset put it back to 100.
   - platform: template
@@ -113,6 +162,15 @@ sensor:
     name: "Filter Rated Life"
     id: filter_life_days
     unit_of_measurement: "days"
+    accuracy_decimals: 0
+    entity_category: diagnostic
+
+  # Key 0x14 bytes[0:2]: a 2 h countdown that only ticks while a dry cycle runs.
+  - platform: template
+    name: "Filter Dry Remaining"
+    id: dry_remaining
+    unit_of_measurement: "min"
+    icon: "mdi:timer-sand"
     accuracy_decimals: 0
     entity_category: diagnostic
 
@@ -132,12 +190,18 @@ binary_sensor:
     id: humidifying
     device_class: running
 
+  # Key 0x14 byte[3]. A dry cycle runs on top of whatever mode is active, so
+  # this is a state of its own and not a Mode option. Ends by selecting any mode.
+  - platform: template
+    name: "Filter Drying"
+    id: filter_drying
+    icon: "mdi:fan-clock"
+
 switch:
   - platform: template
     name: "Power"
     id: power
     icon: "mdi:power"
-    optimistic: true
     restore_mode: DISABLED
     turn_on_action:
       - lambda: |-
@@ -152,7 +216,6 @@ switch:
     name: "Display"
     id: display_sw
     icon: "mdi:television"
-    optimistic: true
     restore_mode: DISABLED
     turn_on_action:
       - lambda: |-
@@ -167,7 +230,6 @@ switch:
     name: "Child Lock"
     id: child_lock
     icon: "mdi:lock"
-    optimistic: true
     restore_mode: DISABLED
     turn_on_action:
       - lambda: |-
@@ -183,7 +245,6 @@ switch:
     id: dry_power_off
     icon: "mdi:fan-clock"
     entity_category: config
-    optimistic: true
     restore_mode: DISABLED
     turn_on_action:
       - lambda: |-
@@ -199,7 +260,6 @@ switch:
     id: dry_water_shortage
     icon: "mdi:water-alert"
     entity_category: config
-    optimistic: true
     restore_mode: DISABLED
     turn_on_action:
       - lambda: |-
@@ -211,6 +271,9 @@ switch:
           if (hub) hub->set_dry_on_water_shortage(false);
 
 number:
+  # Auto and Auto Pro own this value on the device (50 % and 55 %), so writing
+  # it from Auto switches to Humidity mode first -- otherwise the MCU stores the
+  # number, keeps using its own, and the control visibly snaps back.
   - platform: template
     name: "Target Humidity"
     id: target_humidity
@@ -219,29 +282,16 @@ number:
     step: 1
     unit_of_measurement: "%"
     icon: "mdi:water-percent"
-    optimistic: true
+    optimistic: false
     restore_value: false
     set_action:
       - lambda: |-
           auto *hub = levoit_6000s::Levoit6000S::instance;
           if (hub) hub->set_target_humidity((uint8_t) x);
 
-  # The app exposes nine speeds; the hardware has three (low/med/high) and
-  # remaps internally, so 1-9 is valid on the wire.
-  - platform: template
-    name: "Fan Speed"
-    id: fan_speed_set
-    min_value: 1
-    max_value: 9
-    step: 1
-    icon: "mdi:fan"
-    optimistic: true
-    restore_value: false
-    set_action:
-      - lambda: |-
-          auto *hub = levoit_6000s::Levoit6000S::instance;
-          if (hub) hub->set_fan_speed((uint8_t) x);
-
+  # Write-only: no status key tracks the user timer, so there is nothing to
+  # publish back and no way to confirm the value took. 0x14 is the filter-dry
+  # countdown and ignores 0x5019 entirely.
   - platform: template
     name: "Timer"
     id: timer_set
@@ -250,6 +300,7 @@ number:
     step: 1
     unit_of_measurement: "h"
     icon: "mdi:timer-outline"
+    entity_category: config
     optimistic: true
     restore_value: false
     set_action:
@@ -258,38 +309,55 @@ number:
           if (hub) hub->set_timer((uint32_t) x * 3600);
 
 select:
-  # Single source of truth for mode: control and state in one entity. The
-  # options are exactly the strings parse_status_ can emit, so publish_state
-  # never has to reject one. optimistic is off, so the shown value is always
-  # what the MCU last reported, not what we asked for.
+  # Modes only. Power is its own switch, and a filter-dry cycle is a state that
+  # runs on top of a mode (see the Filter Drying binary sensor), not a mode.
   #
-  # "Auto"/"Auto Pro" are wire mode 4 with auto_preference 1/2 (targets 50/55).
-  # The app sends both frames for one button press and has no "Away" mode.
+  # "Auto"/"Auto Pro" are one wire mode (0x5532 k01=4) with auto_preference 1/2.
+  # Measured: preference 1 -> target 50 % / fan 1, preference 2 -> target 55 % /
+  # fan 5. The app sends both frames for one button press and has no "Away" mode.
   - platform: template
     name: "Mode"
     id: mode_select
     icon: "mdi:auto-mode"
     options:
-      - "Off"
       - "Manual"
       - "Sleep"
       - "Humidity"
       - "Auto"
       - "Auto Pro"
-      - "Filter Dry"
     optimistic: false
     restore_value: false
     set_action:
       - lambda: |-
           auto *hub = levoit_6000s::Levoit6000S::instance;
           if (!hub) return;
-          if (x == "Off") hub->set_power(false);
-          else if (x == "Manual") hub->set_mode(1);
-          else if (x == "Sleep") hub->set_mode(2);
-          else if (x == "Humidity") hub->set_mode(3);
+          if (x == "Manual") hub->set_mode(levoit_6000s::MODE_MANUAL);
+          else if (x == "Sleep") hub->set_mode(levoit_6000s::MODE_SLEEP);
+          else if (x == "Humidity") hub->set_mode(levoit_6000s::MODE_HUMIDITY);
           else if (x == "Auto") hub->set_auto(1);
           else if (x == "Auto Pro") hub->set_auto(2);
-          else if (x == "Filter Dry") hub->run_filter_dry(1);
+
+  # The app exposes nine speeds; the hardware has three. Metered at every step:
+  # 1-3 is low, 4-6 medium, 7-9 high, so this sends 1/5/9 and reports the level
+  # that the setpoint (key 0x15) falls into. Setting it outside Manual switches
+  # to Manual first, because the MCU otherwise ignores 0x5533.
+  - platform: template
+    name: "Fan Speed"
+    id: fan_speed_select
+    icon: "mdi:fan"
+    options:
+      - "Low"
+      - "Medium"
+      - "High"
+    optimistic: false
+    restore_value: false
+    set_action:
+      - lambda: |-
+          auto *hub = levoit_6000s::Levoit6000S::instance;
+          if (!hub) return;
+          if (x == "Low") hub->set_fan_level(1);
+          else if (x == "Medium") hub->set_fan_level(2);
+          else if (x == "High") hub->set_fan_level(3);
 
 button:
   - platform: template
@@ -299,10 +367,19 @@ button:
     on_press:
       - lambda: |-
           auto *hub = levoit_6000s::Levoit6000S::instance;
-          if (hub) hub->send_command(0x5544);
+          if (hub) hub->reset_filter();
 
-  # Selecting "Filter Dry" on the Mode select runs the low cycle; the high
-  # cycle has no distinct reported state, so it only exists as an action.
+  # 0x5546 k02: 1 = low, 2 = high. Both run a 2 h cycle; selecting any mode
+  # ends it early.
+  - platform: template
+    name: "Filter Dry (Low)"
+    icon: "mdi:fan-speed-1"
+    entity_category: config
+    on_press:
+      - lambda: |-
+          auto *hub = levoit_6000s::Levoit6000S::instance;
+          if (hub) hub->run_filter_dry(1);
+
   - platform: template
     name: "Filter Dry (High)"
     icon: "mdi:fan-speed-3"

@@ -46,8 +46,20 @@ byte late re-synchronises after a few records, so most keys still decode and
 only the first handful are silently corrupted. Check that the walk consumes the
 frame *exactly*, and spot-check low-numbered keys against a known value.
 
-Every SEND is answered with an ACK carrying the same payloadType. The MCU
-reports state **unsolicited** on change; polling is optional.
+Every SEND is answered with an ACK carrying the same payloadType. Most ACKs are
+a bare `len=10` with no body — but the ACK to a status request (`0x5531`) is
+`len=96` and carries a **full status body**, laid out exactly like a `0x5530`
+report (result byte at 9, TLVs from 10). So a poll gets its answer in the ACK
+itself, not in a follow-up report:
+
+```
+ESP->MCU SEND seq=2 payloadType=0x023155 len=10
+MCU->ESP ACK  seq=2 payloadType=0x023155 len=96   <- status body here
+```
+
+The MCU also reports state **unsolicited** on change, so polling is optional.
+
+The stock ESP echoes the MCU's `seq` in its ACKs.
 
 ## Commands (ESP → MCU)
 
@@ -100,6 +112,13 @@ modelling them as separate "Away" and "Auto Preset" controls was a mistake.
 `0x5537 k02` is `humidity_preference` (status `0x21`), which picks fan 9 vs
 fan 5 within Humidity mode — the same trick, not yet exposed as an entity.
 
+**Mode 4 owns the target humidity.** `0x5536` sent while in mode 4 is accepted
+and remembered, but `0x08` keeps reporting the preference's own target for as
+long as mode 4 is active. Measured: in Humidity mode, setting 65 sticks at 65;
+in Auto the same write reads back 50, and 55 in Auto Pro — then switching to
+Humidity brings the stored 65 back. So writing a target from Auto is only
+meaningful if you also leave Auto.
+
 ## Status report (MCU → ESP, `0x5530`)
 
 | key | len | meaning |
@@ -113,10 +132,10 @@ fan 5 within Humidity mode — the same trick, not yet exposed as an entity.
 | `0x09` | 1 | **current humidity, %RH** |
 | `0x0A` | 1 | temperature, whole °C (lags `0x1E`) |
 | `0x0B` | 1 | **mode** — echoes the `0x5532` value |
-| `0x0C` | 1 | **fan speed** 1–9; `0` while powered = filter-dry cycle |
-| `0x13` | 1 | `auto_preference` (from `0x5537 k01`); parks at the fan speed outside mode 4 |
-| `0x14` | 5 | timer: bytes[0:2] = seconds remaining, uint16 LE. Doubles as the filter-dry countdown (30 min cycle) |
-| `0x15` | 1 | fan speed mirror |
+| `0x0C` | 1 | **actual fan** 0–9; `0` whenever the unit is idle, which is the resting state of Auto once RH reaches target |
+| `0x13` | 1 | `auto_preference` (from `0x5537 k01`); only believable when it reads 1 or 2 — a stock capture caught it holding `9` in Manual |
+| `0x14` | 5 | **not** the user timer — see below. bytes[0:2] = uint16 LE **filter-dry countdown**, byte[2] = dry-on-power-off setting, byte[3] = `1` while a dry cycle runs, `2` otherwise |
+| `0x15` | 1 | fan **setpoint** — what was asked for, vs `0x0C` which is what the fan is doing |
 | `0x16` | 1 | rated filter life, days (constant 120) |
 | `0x17` | 1 | **filter life remaining, percent** — read 65, reset to 100 by `0x5544` |
 | `0x18` | 1 | child lock |
@@ -125,6 +144,34 @@ fan 5 within Humidity mode — the same trick, not yet exposed as an entity.
 | `0x21` | 1 | `humidity_preference` (from `0x5537 k02`) |
 
 Unidentified: `0x00`, `0x01` (3 bytes), `0x06`, `0x11`, `0x20`, `0x27` (4 bytes).
+
+### `0x14`'s counter freezes; it does not free-run
+
+Measured across a full cycle on the live device. It is a 1 Hz countdown from
+7200 (2 h) that ticks **only** while byte[3] is `1`, and freezes wherever it
+stopped:
+
+```
+12:45:49 .. 12:50:49   counter=1792   byte[3]=02   flat for 5 min
+12:50:56 dry starts    counter=7199   byte[3]=01
+12:51:11               counter=7184   byte[3]=01   -15 over 15 s
+12:51:25               counter=7170   byte[3]=01   -14 over 14 s
+12:51:40               counter=7155   byte[3]=01   -15 over 15 s
+12:51:47 mode change   counter=7149   byte[3]=02   cycle ends
+12:51:57 .. 12:52:01   counter=7149   byte[3]=02   frozen
+```
+
+So the value outside a cycle is a leftover from the last one and means nothing.
+Selecting any mode ends a running cycle early.
+
+### Fan speed: nine values, three levels
+
+The MCU accepts and echoes 1–9 verbatim (swept every step and read back on
+`0x0C`/`0x15`), but the hardware only has three. Metered: 1–3 low, 4–6 medium,
+7–9 high. The app's nine-position slider is cosmetic. Use 1/5/9.
+
+`0x5533` is **ignored outside Manual** — sent in Auto Pro, the fan did not move
+and `0x0B` stayed 4.
 
 Weekly cleaning reminder and temperature unit are **app/cloud settings** — they
 generate no UART traffic and cannot be exposed through this link.
@@ -154,6 +201,25 @@ and the wrong one got the credit.
 
 `0x0C` was initially read as a mode enum (1=Sleep, 5=Auto, 9=Manual) because
 those modes happen to select fan speeds 1, 5 and 9. It is the fan speed.
+
+`0x14` was published as a user-facing "Timer Remaining" sensor, where it read a
+flat 2 h forever. It does not react to `0x5019` at all — setting *and*
+cancelling a timer left the counter running straight through it. The user timer
+is write-only from this link's point of view; the only genuinely useful field in
+`0x14` is byte[3], the filter-dry flag.
+
+`0x15` was read as a mirror of `0x0C` because in Manual the two always agree.
+They are different quantities: `0x15` is the setpoint, `0x0C` is what the fan is
+actually doing. In `6000s_mcu_uart_modes.csv`, `0x0C` walks `01→09→00→01` across
+mode changes while `0x15` never moves; the two only step together at t=32–43,
+where the fan speed is being set by hand.
+
+Filter-dry detection was keyed off "fan is 0", on the reasoning that the MCU
+reports fan 0 rather than mode 5 during a dry cycle. Fan 0 only means the output
+is idle, which is also the normal resting state in Auto once RH reaches target —
+so the device announced "Filter Dry" every time Auto was satisfied. The same
+pattern is in the stock capture (`t=7.749`, `0x0C 09→00` with mode still 4).
+`0x14` byte[3] is the only reliable indicator.
 
 Both errors came from inferring across captures instead of within one. Change
 one variable, in one recording, and watch for the edge.
