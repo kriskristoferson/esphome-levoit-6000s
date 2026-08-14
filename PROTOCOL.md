@@ -209,6 +209,26 @@ Do not conclude from a capture where the fan and `0x07` move together that one
 mirrors the other. In normal operation demand and airflow start at the same
 moment; only a constant-fan test separates them.
 
+**But `0x07` is not a complete pump sensor.** An audible pump run in Auto, with
+RH already above target, produced **no wire change of any kind** — five minutes
+of frames either side, `fan=0` and `0x07=0` throughout, and the only bytes
+moving in 300 s were RH flickering 57↔58 and temperature 21.3↔20.6:
+
+```
+15:03:32  fan=0 0x07=0   (no change)
+15:03:38  fan=0 0x07=0   (no change)
+   <-- pump audibly runs
+15:03:53  fan=0 0x07=0   (no change)
+```
+
+This is not a sampling artefact: the MCU reports changes unsolicited within
+~150 ms, as it does for fan, mode, power and `0x07` itself, so a real transition
+would have produced a frame.
+
+So `0x07` covers demand-driven humidification and nothing else. There is
+mechanical activity the MCU never reports. If you need true pump state, tap the
+pump drive with a GPIO — the protocol will not give it to you.
+
 ### `0x14`'s counter freezes; it does not free-run
 
 Measured across a full cycle on the live device. It is a 1 Hz countdown from
