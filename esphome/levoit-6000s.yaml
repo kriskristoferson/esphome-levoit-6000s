@@ -23,7 +23,15 @@ wifi:
     password: !secret fallback_ap_password
 
 logger:
-  level: DEBUG
+  # INFO compiles the ESP_LOGD calls out, so the raw frame hex costs nothing --
+  # not even the format_hex_pretty allocation it used to make on every status
+  # frame. What is left at INFO is one-off events: link up, the mode
+  # auto-switches, probe injections, and MCU rejections.
+  #
+  # Set this to DEBUG and reflash to get the full TX/RX frame hex back. That is
+  # the view every protocol finding in PROTOCOL.md came from, so reach for it
+  # before guessing at a decode.
+  level: INFO
   baud_rate: 0
   # UART1 belongs to the MCU link (tx=GPIO19 rx=GPIO18). UART0 is the J1
   # console header, so logging must never be pointed at UART1.

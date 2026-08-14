@@ -250,6 +250,16 @@ class Levoit6000S : public Component {
       send_kv_(OP_TARGET_RH, 0x01, pct);
       return;
     }
+    // Leaving Auto is a real consequence, so only do it for a write that
+    // actually asks for something different. A redundant write of the value
+    // already showing -- an automation re-asserting state, a client
+    // reconnecting, a stray tap -- would otherwise drop the user out of Auto
+    // silently, and because Auto's preset and the written value are then equal,
+    // the only visible effect is the mode quietly changing on its own.
+    if (!std::isnan(target_humidity) && (uint8_t) target_humidity == pct) {
+      ESP_LOGI(TAG, "target %u%% already active in Auto; staying in Auto", pct);
+      return;
+    }
     ESP_LOGI(TAG, "target %u%% requested in Auto; switching to Humidity mode first", pct);
     set_mode(MODE_HUMIDITY);
     this->set_timeout("target_after_mode", MODE_FOLLOWUP_MS,
@@ -462,7 +472,9 @@ class Levoit6000S : public Component {
         break;
     }
 
-    ESP_LOGI(TAG, "power=%d mode=%s (raw=0x%02X pref=%u) fan=%.0f/%.0f rh=%.0f%% target=%.0f%% "
+    // Debug, not info: this fires on every status frame, so every 11-15 s
+    // forever. Home Assistant already holds all of it as entity state.
+    ESP_LOGD(TAG, "power=%d mode=%s (raw=0x%02X pref=%u) fan=%.0f/%.0f rh=%.0f%% target=%.0f%% "
                   "temp=%.1fC tank_missing=%d low_water=%d running=%d drying=%d lock=%d display=%d",
              power_on, work_mode.c_str(), mode_raw, auto_preference, fan_actual, fan_setpoint,
              humidity, target_humidity, temperature, water_tank_missing, low_water, output_running,
