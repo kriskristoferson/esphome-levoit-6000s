@@ -41,13 +41,16 @@ static constexpr uint8_t MODE_SLEEP    = 2;
 static constexpr uint8_t MODE_HUMIDITY = 3;
 static constexpr uint8_t MODE_AUTO     = 4;
 
-// 0x5537 k01 in mode 4. 1 and 2 are the app's two auto buttons and pin the
-// target to 50 % and 55 %. Any other value makes Auto regulate to the user's
-// own stored target instead, which is the only way to change what Auto aims
-// for -- the app has no UI for it and never sends anything but 1 or 2.
-static constexpr uint8_t AUTO_PREF_LOW    = 1;
-static constexpr uint8_t AUTO_PREF_HIGH   = 2;
-static constexpr uint8_t AUTO_PREF_CUSTOM = 3;
+// 0x5537 k01 in mode 4. These two are the app's auto buttons and are the only
+// values it ever sends; they pin the target to 50 % and 55 %.
+//
+// The MCU accepts 0-9 and 0x13 echoes them, and any value outside 1-2 makes
+// 0x08 report the user's stored target -- but that is a reporting artefact, not
+// a working setpoint. In that state the controller hunts (fan 9<->0 every
+// ~12 s at target 62 / RH 57, where Humidity mode at the same target ran fan 5
+// flat). Treat 1 and 2 as the only usable preferences.
+static constexpr uint8_t AUTO_PREF_LOW  = 1;
+static constexpr uint8_t AUTO_PREF_HIGH = 2;
 
 // The app emits a mode change and its follow-up parameter as two frames 14-52 ms
 // apart rather than back to back. Reproduce that spacing.
@@ -230,21 +233,27 @@ class Levoit6000S : public Component {
                       [this, raw]() { send_kv_(OP_FAN_SPEED, 0x01, raw); });
   }
 
-  // Auto's target is a function of auto_preference: 1 pins it to 50 %, 2 to
-  // 55 %, and any other value hands it back to the user's own stored target.
-  // So a target written from Auto does not require leaving Auto -- it requires
-  // moving off the two presets first, otherwise the preset immediately
-  // overrides the write and the control snaps back.
+  // Auto pins the target to its preference's own value (50 % or 55 %) and
+  // overrides anything written while mode 4 is active, so a target set from
+  // Auto has to leave Auto. Humidity mode is where a user-chosen target is
+  // actually honoured.
+  //
+  // Do NOT be tempted by auto_preference 3 here. Preferences other than 1 and 2
+  // do make 0x08 report the user's stored target, which looks like "Auto with a
+  // custom setpoint" -- but the controller behind it does not regulate to that
+  // value. Measured back to back at target 62 with RH 56-59: mode 4 preference
+  // 3 cycled the fan 9<->0 every ~12 s indefinitely, while Humidity mode at the
+  // same target held fan 5 steady with zero transitions across RH 57->58->59.
+  // The reported target follows; the control loop does not.
   void set_target_humidity(uint8_t pct) {
-    if (mode_raw == MODE_AUTO && auto_preference < AUTO_PREF_CUSTOM) {
-      ESP_LOGI(TAG, "target %u%% requested in Auto on preset %u; moving to the custom target first",
-               pct, auto_preference);
-      set_auto_preference(AUTO_PREF_CUSTOM);
-      this->set_timeout("target_after_pref", MODE_FOLLOWUP_MS,
-                        [this, pct]() { send_kv_(OP_TARGET_RH, 0x01, pct); });
+    if (mode_raw != MODE_AUTO) {
+      send_kv_(OP_TARGET_RH, 0x01, pct);
       return;
     }
-    send_kv_(OP_TARGET_RH, 0x01, pct);
+    ESP_LOGI(TAG, "target %u%% requested in Auto; switching to Humidity mode first", pct);
+    set_mode(MODE_HUMIDITY);
+    this->set_timeout("target_after_mode", MODE_FOLLOWUP_MS,
+                      [this, pct]() { send_kv_(OP_TARGET_RH, 0x01, pct); });
   }
 
   // Write-only: no status key tracks the user timer. 0x14 is the filter-dry
