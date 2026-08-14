@@ -52,6 +52,9 @@ class Levoit6000S : public Component {
   bool power_on = false;
   bool display_on = false;
   bool child_lock = false;
+  // Status key 0x13. Persisted across frames because the MCU omits it from
+  // some reports; only trusted while mode 4 is active.
+  uint8_t auto_preference = 1;
   std::string work_mode;
   bool state_dirty = false;
 
@@ -144,6 +147,15 @@ class Levoit6000S : public Component {
   void set_fan_speed(uint8_t s)    { send_kv_(OP_FAN_SPEED, 0x01, s); }
   void set_target_humidity(uint8_t pct) { send_kv_(OP_TARGET_RH, 0x01, pct); }
   void set_auto_submode(uint8_t s) { send_kv_(OP_AUTO_SUBMODE, 0x01, s); }
+
+  // The app never sends mode 4 on its own: one button press emits 0x5532 k01=04
+  // and then 0x5537 k01=<pref> as a second frame 14-52 ms later. Preference 1
+  // settles on target 50 %, preference 2 on target 55 %. The delay reproduces
+  // the observed spacing rather than firing both inside a millisecond.
+  void set_auto(uint8_t pref) {
+    set_mode(4);
+    this->set_timeout("auto_pref", 50, [this, pref]() { set_auto_submode(pref); });
+  }
   void set_fan_mode(uint8_t v)     { send_kv_(OP_AUTO_SUBMODE, 0x02, v); }
   void run_filter_dry(uint8_t lvl) { send_kv_(OP_FILTER_DRY, 0x02, lvl); }
   void set_dry_on_power_off(bool on)      { send_kv_(OP_FILTER_DRY, 0x01, on ? 1 : 0); }
@@ -217,15 +229,23 @@ class Levoit6000S : public Component {
     uint16_t opcode = ((uint16_t) frame[8] << 8) | frame[7];
 
     if (msg_type == 0x22) {
-      if (opcode == OP_STATUS_REPORT && len > 10)
-        parse_status_(frame + 10, len - 10);
+      // Body starts at byte 9: the result byte, then the TLV records at byte 10.
+      // Passing frame+10 here (and skipping another byte inside parse_status_)
+      // started the walk one byte late; see the comment on parse_status_.
+      if (opcode == OP_STATUS_REPORT && len >= 10) {
+        ESP_LOGD(TAG, "RX status: %s", format_hex_pretty(frame, len).c_str());
+        parse_status_(frame + 9, len - 9);
+      }
       send_ack_(opcode);
     } else if (msg_type == 0x52) {
       ESP_LOGW(TAG, "MCU rejected opcode 0x%04X", opcode);
     }
   }
 
-  // Status body is a leading result byte followed by key/len/value records.
+  // Status body is a leading result byte followed by key/len/value records, so
+  // the walk starts at index 1. Getting this offset wrong does not desync the
+  // whole frame -- the walk re-aligns a few records in -- it just silently
+  // corrupts the first handful of keys, which is what hid the tank-missing bug.
   void parse_status_(const uint8_t *data, size_t len) {
     uint8_t mode_raw = 0xFF;
     bool have_fan = false;
@@ -251,6 +271,9 @@ class Levoit6000S : public Component {
         case 0x09: humidity = val[0]; break;
         case 0x0B: mode_raw = val[0]; break;
         case 0x0C: fan_raw = val[0]; have_fan = true; break;
+        // auto_preference (the firmware's own name for 0x5537 k01). Only
+        // meaningful in mode 4; outside it the MCU parks fan speed here.
+        case 0x13: auto_preference = val[0]; break;
         case 0x14:
           if (vlen >= 2) {
             uint16_t secs = (uint16_t) val[0] | ((uint16_t) val[1] << 8);
@@ -275,24 +298,35 @@ class Levoit6000S : public Component {
 
     if (have_fan) fan_speed = fan_raw;
 
-    // Fan speed 0 while powered means the filter-dry cycle, not "off".
+    // Mode numbering matches the name table in the stock ESP firmware
+    // (0 auto, 1 manual, 2 sleep, 3 humidity, 4 autoPro, 5 dry). Mode 4 is the
+    // auto family, not "Away" -- the app splits it into two buttons using
+    // auto_preference, and never sends mode 4 without one.
+    //
+    // Every string produced here must be an option on the Mode select, or
+    // Select::publish_state rejects it. An unrecognised mode keeps the previous
+    // value rather than inventing an "Unknown" option.
     if (!power_on)
       work_mode = "Off";
-    else if (have_fan && fan_raw == 0)
-      work_mode = "Filter Dry";
+    else if (mode_raw == 5 || (have_fan && fan_raw == 0))
+      work_mode = "Filter Dry";  // the MCU reports fan 0, not mode 5, in practice
     else
       switch (mode_raw) {
         case 1: work_mode = "Manual"; break;
         case 2: work_mode = "Sleep"; break;
         case 3: work_mode = "Humidity"; break;
-        case 4: work_mode = "Away"; break;
-        default: work_mode = "Unknown"; break;
+        case 4: work_mode = (auto_preference == 2) ? "Auto Pro" : "Auto"; break;
+        case 0xFF: break;  // key 0x0B absent from this frame
+        default:
+          ESP_LOGW(TAG, "unmapped mode 0x%02X, keeping '%s'", mode_raw, work_mode.c_str());
+          break;
       }
 
-    ESP_LOGI(TAG, "power=%d mode=%s fan=%.0f rh=%.0f%% target=%.0f%% temp=%.1fC "
-                  "tank_missing=%d low_water=%d running=%d lock=%d",
-             power_on, work_mode.c_str(), fan_speed, humidity, target_humidity,
-             temperature, water_tank_missing, low_water, output_running, child_lock);
+    ESP_LOGI(TAG, "power=%d mode=%s (raw=0x%02X pref=%u) fan=%.0f rh=%.0f%% target=%.0f%% "
+                  "temp=%.1fC tank_missing=%d low_water=%d running=%d lock=%d display=%d",
+             power_on, work_mode.c_str(), mode_raw, auto_preference, fan_speed, humidity,
+             target_humidity, temperature, water_tank_missing, low_water, output_running,
+             child_lock, display_on);
     state_dirty = true;
   }
 

@@ -38,7 +38,13 @@ A5 | type | seq | len16_LE | cksum | payloadType[3] | result | TLV...
 * `cksum` — `(255 - sum(all frame bytes except byte[5])) & 0xFF`
 * `payloadType` — byte 6 is always `0x02` (device family = humidifier); bytes
   7–8 are the opcode, little-endian. Air purifiers use `0x01` here.
-* Body is a leading result byte then `key, length, value` records.
+* Body is a leading result byte at **byte 9**, then `key, length, value`
+  records starting at **byte 10**. This holds in both directions.
+
+Get that offset wrong and the damage is not obvious: a walk that starts one
+byte late re-synchronises after a few records, so most keys still decode and
+only the first handful are silently corrupted. Check that the walk consumes the
+frame *exactly*, and spot-check low-numbered keys against a known value.
 
 Every SEND is answered with an ACK carrying the same payloadType. The MCU
 reports state **unsolicited** on change; polling is optional.
@@ -53,18 +59,46 @@ reports state **unsolicited** on change; polling is optional.
 | `0x5019` | `k01=<u32 LE seconds>` | timer; `0` cancels |
 | `0x5140` | `k01=01/00` | child lock |
 | `0x5531` | *(none)* | status request |
-| `0x5532` | `k01=N` | mode: 1 Manual, 2 Sleep, 3 Humidity, 4 Away |
+| `0x5532` | `k01=N` | mode: 1 Manual, 2 Sleep, 3 Humidity, 4 Auto |
 | `0x5533` | `k01=1..9` | fan speed |
 | `0x5536` | `k01=NN` | target humidity, raw percent |
-| `0x5537` | `k01=N` / `k02=N` | auto sub-mode / fan-mode variant |
+| `0x5537` | `k01=N` / `k02=N` | `auto_preference` / `humidity_preference` |
 | `0x5544` | *(empty body)* | reset filter |
 | `0x5546` | `k01` / `k02` / `k03` | dry-on-power-off / run dry cycle (1 low, 2 high) / dry-on-water-shortage |
 
 Example — fan speed 5:
 `A5 22 11 07 00 8F 02 33 55 00 01 01 05`
 
-There is no mode called "Auto". The app's two auto-ish buttons are **Humidity**
-(the "smart" one, mode 3) and **Away** (mode 4).
+### Modes, and why "Away" was wrong
+
+The stock ESP firmware carries a mode-name pointer table at `.rodata`
+`0x3C0F0518`, and the index into it *is* the wire mode value:
+
+| value | name | notes |
+|---|---|---|
+| 0 | `auto` | never seen on the wire |
+| 1 | `manual` | confirmed |
+| 2 | `sleep` | confirmed |
+| 3 | `humidity` | confirmed; target jumps to 75 |
+| 4 | `autoPro` | confirmed; the auto family |
+| 5 | `dry` | never reported in `0x0B` — detect via fan `0` |
+
+Indices 1–3 match the wire exactly, which is what pins the mapping. **Mode 4 is
+auto, not "Away"** — the firmware has no "away" humidifier mode at all, and its
+two auto entry points are `enterAutoMode` and `enterAutoProMode`.
+
+The app never sends mode 4 alone. One button press emits `0x5532 k01=04` and
+then `0x5537 k01=<pref>` as a second frame 14–52 ms later:
+
+| `auto_preference` | target | fan |
+|---|---|---|
+| 1 | 50 % | 1 |
+| 2 | 55 % | 5 |
+
+So the app's two auto buttons are one wire mode with two preferences, and
+modelling them as separate "Away" and "Auto Preset" controls was a mistake.
+`0x5537 k02` is `humidity_preference` (status `0x21`), which picks fan 9 vs
+fan 5 within Humidity mode — the same trick, not yet exposed as an entity.
 
 ## Status report (MCU → ESP, `0x5530`)
 
@@ -80,7 +114,7 @@ There is no mode called "Auto". The app's two auto-ish buttons are **Humidity**
 | `0x0A` | 1 | temperature, whole °C (lags `0x1E`) |
 | `0x0B` | 1 | **mode** — echoes the `0x5532` value |
 | `0x0C` | 1 | **fan speed** 1–9; `0` while powered = filter-dry cycle |
-| `0x13` | 1 | auto sub-mode (from `0x5537 k01`) |
+| `0x13` | 1 | `auto_preference` (from `0x5537 k01`); parks at the fan speed outside mode 4 |
 | `0x14` | 5 | timer: bytes[0:2] = seconds remaining, uint16 LE. Doubles as the filter-dry countdown (30 min cycle) |
 | `0x15` | 1 | fan speed mirror |
 | `0x16` | 1 | rated filter life, days (constant 120) |
@@ -88,7 +122,7 @@ There is no mode called "Auto". The app's two auto-ish buttons are **Humidity**
 | `0x18` | 1 | child lock |
 | `0x1E` | 2 | **temperature ×10**, uint16 LE — always Celsius |
 | `0x1F` | 1 | dry-on-water-shortage *setting* (not a sensor) |
-| `0x21` | 1 | fan-mode variant (from `0x5537 k02`) |
+| `0x21` | 1 | `humidity_preference` (from `0x5537 k02`) |
 
 Unidentified: `0x00`, `0x01` (3 bytes), `0x06`, `0x11`, `0x20`, `0x27` (4 bytes).
 
@@ -110,7 +144,7 @@ status frames:
   are handled MCU-locally and only reported, so they never reveal command
   frames. Two full sessions of button-mashing produced zero commands.
 
-### Two wrong calls, and why
+### Wrong calls, and why
 
 `0x1F` was initially read as low water because it was 1 in every tank-off
 capture and 0 in every tank-on one. It is actually the dry-on-water-shortage
@@ -129,3 +163,12 @@ as "unchanged by a filter reset" because it was flat *within* the reset capture
 — but the reset landed before that capture's first status frame, so the whole
 recording was already post-reset. The 65→100 step was only visible by comparing
 captures. Check both, every time.
+
+A fourth kind of error has nothing to do with the captures. The ESPHome
+component decoded the same frames correctly for humidity, temperature, mode and
+filter life while starting its TLV walk one byte late, because the walk
+re-aligns. The keys it destroyed were the low-numbered ones: `0x03` read a
+constant `0x00` (so tank-missing could never fire), `0x04` and `0x05` were
+skipped entirely in most frames, and `0x02` landed on the display byte, which
+tracks power closely enough to look right. A decoder that is right about
+fifteen fields can still be wrong about the first four.
