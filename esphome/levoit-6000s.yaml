@@ -25,11 +25,13 @@ wifi:
 logger:
   level: DEBUG
   baud_rate: 0
-  hardware_uart: UART1
+  # UART1 belongs to the MCU link (tx=GPIO19 rx=GPIO18). UART0 is the J1
+  # console header, so logging must never be pointed at UART1.
+  hardware_uart: UART0
 
 api:
   encryption:
-    key: !secret api_key
+    key: !secret levoit-6000s_api_key
 
 ota:
   - platform: esphome
@@ -56,108 +58,160 @@ interval:
           if (!std::isnan(h->filter_life_days)) id(filter_life_days).publish_state(h->filter_life_days);
           if (!std::isnan(h->timer_remaining)) id(timer_remaining).publish_state(h->timer_remaining);
           id(water_tank_missing).publish_state(h->water_tank_missing);
+          id(low_water).publish_state(h->low_water);
+          id(humidifying).publish_state(h->output_running);
+          id(dry_water_shortage).publish_state(h->dry_on_water_shortage);
           id(power).publish_state(h->power_on);
           id(display_sw).publish_state(h->display_on);
           id(child_lock).publish_state(h->child_lock);
-          if (!h->work_mode.empty()) id(mode).publish_state(h->work_mode);
+          if (!h->work_mode.empty()) id(current_mode).publish_state(h->work_mode);
 
 sensor:
   - platform: template
-    name: "Current Humidity"
+    name: "Humidity"
     id: current_humidity
+    device_class: humidity
     unit_of_measurement: "%"
     accuracy_decimals: 0
     state_class: measurement
 
   - platform: template
-    name: "Current Temperature"
+    name: "Temperature"
     id: current_temp
+    device_class: temperature
     unit_of_measurement: "°C"
-    accuracy_decimals: 0
+    accuracy_decimals: 1
     state_class: measurement
 
   - platform: template
     name: "Fan Speed"
     id: fan_speed
+    icon: "mdi:fan"
     accuracy_decimals: 0
+    state_class: measurement
 
+  - platform: template
+    name: "Timer Remaining"
+    id: timer_remaining
+    unit_of_measurement: "h"
+    icon: "mdi:timer-outline"
+    accuracy_decimals: 2
+
+  # Filter-life mapping is inherited guesswork: key 0x16 reads 120, which
+  # cannot be a percentage. Diagnostic until verified against a real filter.
   - platform: template
     name: "Filter Life"
     id: filter_life_pct
     unit_of_measurement: "%"
     accuracy_decimals: 0
+    entity_category: diagnostic
 
   - platform: template
     name: "Filter Life Days"
     id: filter_life_days
     unit_of_measurement: "days"
     accuracy_decimals: 0
+    entity_category: diagnostic
 
+text_sensor:
   - platform: template
-    name: "Timer Remaining"
-    id: timer_remaining
-    unit_of_measurement: "h"
-    accuracy_decimals: 1
+    name: "Current Mode"
+    id: current_mode
+    icon: "mdi:auto-mode"
 
 binary_sensor:
   - platform: template
     name: "Water Tank Missing"
     id: water_tank_missing
+    device_class: problem
+
+  - platform: template
+    name: "Low Water"
+    id: low_water
+    device_class: problem
+
+  - platform: template
+    name: "Humidifying"
+    id: humidifying
+    device_class: running
 
 switch:
   - platform: template
     name: "Power"
     id: power
+    icon: "mdi:power"
     optimistic: true
     restore_mode: DISABLED
     turn_on_action:
       - lambda: |-
           auto *hub = levoit_6000s::Levoit6000S::instance;
-          if (!hub) return;
-          uint8_t klv[] = {0x01, 0x01, 0x01};
-          hub->send_command(0x5000, klv, sizeof(klv));
+          if (hub) hub->set_power(true);
     turn_off_action:
       - lambda: |-
           auto *hub = levoit_6000s::Levoit6000S::instance;
-          if (!hub) return;
-          uint8_t klv[] = {0x01, 0x01, 0x00};
-          hub->send_command(0x5000, klv, sizeof(klv));
+          if (hub) hub->set_power(false);
 
   - platform: template
     name: "Display"
     id: display_sw
+    icon: "mdi:television"
     optimistic: true
     restore_mode: DISABLED
     turn_on_action:
       - lambda: |-
           auto *hub = levoit_6000s::Levoit6000S::instance;
-          if (!hub) return;
-          uint8_t klv[] = {0x01, 0x01, 0x01};
-          hub->send_command(0x500F, klv, sizeof(klv));
+          if (hub) hub->set_display(true);
     turn_off_action:
       - lambda: |-
           auto *hub = levoit_6000s::Levoit6000S::instance;
-          if (!hub) return;
-          uint8_t klv[] = {0x01, 0x01, 0x00};
-          hub->send_command(0x500F, klv, sizeof(klv));
+          if (hub) hub->set_display(false);
 
   - platform: template
     name: "Child Lock"
     id: child_lock
+    icon: "mdi:lock"
     optimistic: true
     restore_mode: DISABLED
     turn_on_action:
       - lambda: |-
           auto *hub = levoit_6000s::Levoit6000S::instance;
-          if (!hub) return;
-          uint8_t klv[] = {0x01, 0x01, 0x01};
-          hub->send_command(0x5140, klv, sizeof(klv));
+          if (hub) hub->set_child_lock(true);
     turn_off_action:
       - lambda: |-
           auto *hub = levoit_6000s::Levoit6000S::instance;
-          if (!hub) return;
-          uint8_t klv[] = {0x01, 0x01, 0x00};
-          hub->send_command(0x5140, klv, sizeof(klv));
+          if (hub) hub->set_child_lock(false);
+
+  - platform: template
+    name: "Auto Dry On Power Off"
+    id: dry_power_off
+    icon: "mdi:fan-clock"
+    entity_category: config
+    optimistic: true
+    restore_mode: DISABLED
+    turn_on_action:
+      - lambda: |-
+          auto *hub = levoit_6000s::Levoit6000S::instance;
+          if (hub) hub->set_dry_on_power_off(true);
+    turn_off_action:
+      - lambda: |-
+          auto *hub = levoit_6000s::Levoit6000S::instance;
+          if (hub) hub->set_dry_on_power_off(false);
+
+  - platform: template
+    name: "Auto Dry On Water Shortage"
+    id: dry_water_shortage
+    icon: "mdi:water-alert"
+    entity_category: config
+    optimistic: true
+    restore_mode: DISABLED
+    turn_on_action:
+      - lambda: |-
+          auto *hub = levoit_6000s::Levoit6000S::instance;
+          if (hub) hub->set_dry_on_water_shortage(true);
+    turn_off_action:
+      - lambda: |-
+          auto *hub = levoit_6000s::Levoit6000S::instance;
+          if (hub) hub->set_dry_on_water_shortage(false);
 
 number:
   - platform: template
@@ -167,14 +221,29 @@ number:
     max_value: 80
     step: 1
     unit_of_measurement: "%"
+    icon: "mdi:water-percent"
     optimistic: true
     restore_value: false
     set_action:
       - lambda: |-
           auto *hub = levoit_6000s::Levoit6000S::instance;
-          if (!hub) return;
-          uint8_t klv[] = {0x01, 0x01, (uint8_t)x};
-          hub->send_command(0x5536, klv, sizeof(klv));
+          if (hub) hub->set_target_humidity((uint8_t) x);
+
+  # The app exposes nine speeds; the hardware has three (low/med/high) and
+  # remaps internally, so 1-9 is valid on the wire.
+  - platform: template
+    name: "Fan Speed"
+    id: fan_speed_set
+    min_value: 1
+    max_value: 9
+    step: 1
+    icon: "mdi:fan"
+    optimistic: true
+    restore_value: false
+    set_action:
+      - lambda: |-
+          auto *hub = levoit_6000s::Levoit6000S::instance;
+          if (hub) hub->set_fan_speed((uint8_t) x);
 
   - platform: template
     name: "Timer"
@@ -183,64 +252,102 @@ number:
     max_value: 12
     step: 1
     unit_of_measurement: "h"
+    icon: "mdi:timer-outline"
     optimistic: true
     restore_value: false
     set_action:
       - lambda: |-
           auto *hub = levoit_6000s::Levoit6000S::instance;
-          if (!hub) return;
-          uint32_t secs = (uint32_t)x * 3600;
-          uint8_t klv[] = {0x01, 0x04,
-            (uint8_t)(secs & 0xFF), (uint8_t)((secs >> 8) & 0xFF),
-            (uint8_t)((secs >> 16) & 0xFF), (uint8_t)((secs >> 24) & 0xFF)};
-          hub->send_command(0x5019, klv, sizeof(klv));
+          if (hub) hub->set_timer((uint32_t) x * 3600);
 
 select:
   - platform: template
     name: "Mode"
-    id: mode
+    id: mode_select
+    icon: "mdi:auto-mode"
     options:
       - "Manual"
-      - "Auto"
       - "Sleep"
-      - "Filter Dry"
+      - "Humidity"
+      - "Away"
+      - "Filter Dry Low"
+      - "Filter Dry High"
     optimistic: true
     restore_value: false
     set_action:
       - lambda: |-
           auto *hub = levoit_6000s::Levoit6000S::instance;
           if (!hub) return;
-          uint8_t v;
-          if (x == "Manual") v = 9;
-          else if (x == "Auto") v = 5;
-          else if (x == "Sleep") v = 1;
-          else if (x == "Filter Dry") v = 0;
-          else return;
-          uint8_t klv[] = {0x01, 0x01, v};
-          hub->send_command(0x5537, klv, sizeof(klv));
+          if (x == "Manual") hub->set_mode(1);
+          else if (x == "Sleep") hub->set_mode(2);
+          else if (x == "Humidity") hub->set_mode(3);
+          else if (x == "Away") hub->set_mode(4);
+          else if (x == "Filter Dry Low") hub->run_filter_dry(1);
+          else if (x == "Filter Dry High") hub->run_filter_dry(2);
+
+  # Auto preset: 1 selects target 50 / fan 1, 2 selects target 55 / fan 5.
+  # Only meaningful while in Auto.
+  - platform: template
+    name: "Auto Preset"
+    id: auto_preset
+    icon: "mdi:tune"
+    entity_category: config
+    options:
+      - "Preset 1"
+      - "Preset 2"
+    optimistic: true
+    restore_value: false
+    set_action:
+      - lambda: |-
+          auto *hub = levoit_6000s::Levoit6000S::instance;
+          if (!hub) return;
+          hub->set_mode(4);
+          hub->set_auto_submode(x == "Preset 2" ? 2 : 1);
 
 button:
   - platform: template
     name: "Reset Filter"
+    icon: "mdi:air-filter"
+    entity_category: config
     on_press:
       - lambda: |-
           auto *hub = levoit_6000s::Levoit6000S::instance;
           if (hub) hub->send_command(0x5544);
 
+text:
+  # Debug/probe: inject an arbitrary MCU frame at runtime (no recompile).
+  # Set value to "<opcode_hex> <klv_hex>", e.g. "5531" or "5000 010101".
+  # opcode is parsed as hex (0x prefix optional); klv separators are ignored.
   - platform: template
-    name: "Dry Level High"
-    on_press:
+    name: "Probe Command"
+    id: probe_command
+    mode: text
+    entity_category: diagnostic
+    optimistic: true
+    min_length: 0
+    max_length: 255
+    restore_value: false
+    set_action:
       - lambda: |-
           auto *hub = levoit_6000s::Levoit6000S::instance;
           if (!hub) return;
-          uint8_t klv[] = {0x02, 0x01, 0x02};
-          hub->send_command(0x5546, klv, sizeof(klv));
-
-  - platform: template
-    name: "Dry Level Low"
-    on_press:
-      - lambda: |-
-          auto *hub = levoit_6000s::Levoit6000S::instance;
-          if (!hub) return;
-          uint8_t klv[] = {0x02, 0x01, 0x01};
-          hub->send_command(0x5546, klv, sizeof(klv));
+          std::string s = x;
+          size_t sp = s.find(' ');
+          std::string op_s = (sp == std::string::npos) ? s : s.substr(0, sp);
+          std::string klv_s = (sp == std::string::npos) ? std::string("") : s.substr(sp + 1);
+          uint16_t opcode = (uint16_t) strtol(op_s.c_str(), nullptr, 16);
+          auto nib = [](char c) -> int {
+            if (c >= '0' && c <= '9') return c - '0';
+            if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+            if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+            return -1;
+          };
+          std::vector<uint8_t> bytes;
+          int hi = -1;
+          for (char c : klv_s) {
+            int v = nib(c);
+            if (v < 0) continue;
+            if (hi < 0) { hi = v; }
+            else { bytes.push_back((uint8_t)((hi << 4) | v)); hi = -1; }
+          }
+          hub->send_raw(opcode, bytes.data(), bytes.size());

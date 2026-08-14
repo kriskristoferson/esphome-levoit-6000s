@@ -1,0 +1,91 @@
+=== FULL FRAME TIMELINE (chronological, both directions) ===
+ t= 1.6400 MCU->ESP SEND  seq=186 payloadType=0x023055 len= 96 cks=OK
+ t= 1.6506 ESP->MCU ACK   seq=186 payloadType=0x023055 len= 10 cks=OK
+ t= 2.7356 MCU->ESP SEND  seq=187 payloadType=0x023055 len= 96 cks=OK
+ t= 2.7454 ESP->MCU ACK   seq=187 payloadType=0x023055 len= 10 cks=OK
+ t= 3.8312 MCU->ESP SEND  seq=188 payloadType=0x023055 len= 96 cks=OK
+ t= 3.8411 ESP->MCU ACK   seq=188 payloadType=0x023055 len= 10 cks=OK
+ t= 4.9269 MCU->ESP SEND  seq=189 payloadType=0x023055 len= 96 cks=OK
+ t= 4.9367 ESP->MCU ACK   seq=189 payloadType=0x023055 len= 10 cks=OK
+ t= 6.0229 MCU->ESP SEND  seq=190 payloadType=0x023055 len= 96 cks=OK
+ t= 6.0328 ESP->MCU ACK   seq=190 payloadType=0x023055 len= 10 cks=OK
+ t= 7.1187 MCU->ESP SEND  seq=191 payloadType=0x023055 len= 96 cks=OK
+ t= 7.1286 ESP->MCU ACK   seq=191 payloadType=0x023055 len= 10 cks=OK
+ t= 8.2145 MCU->ESP SEND  seq=192 payloadType=0x023055 len= 96 cks=OK
+ t= 8.2243 ESP->MCU ACK   seq=192 payloadType=0x023055 len= 10 cks=OK
+ t= 9.3102 MCU->ESP SEND  seq=193 payloadType=0x023055 len= 96 cks=OK
+ t= 9.3201 ESP->MCU ACK   seq=193 payloadType=0x023055 len= 10 cks=OK
+ t=10.4061 MCU->ESP SEND  seq=194 payloadType=0x023055 len= 96 cks=OK
+ t=10.4160 ESP->MCU ACK   seq=194 payloadType=0x023055 len= 10 cks=OK
+ t=12.5978 MCU->ESP SEND  seq=195 payloadType=0x023055 len= 96 cks=OK
+ t=12.6076 ESP->MCU ACK   seq=195 payloadType=0x023055 len= 10 cks=OK
+ t=21.3643 MCU->ESP SEND  seq=196 payloadType=0x023055 len= 96 cks=OK
+ t=21.3742 ESP->MCU ACK   seq=196 payloadType=0x023055 len= 10 cks=OK
+
+=== STATUS RESPONSE (0x023055) TLV DECODE + CHANGES ===
+
+ t=1.6400 baseline, 25 fields:
+    key 0x00 = 01         (1)
+    key 0x01 = 060001     (65542)
+    key 0x02 = 01         (1)
+    key 0x03 = 01         (1)
+    key 0x04 = 01         (1)
+    key 0x05 = 0101       (257)
+    key 0x06 = 01         (1)
+    key 0x07 = 00         (0)
+    key 0x08 = 37         (55)
+    key 0x09 = 50         (80)
+    key 0x0A = 18         (24)
+    key 0x0B = 01         (1)
+    key 0x0C = 09         (9)
+    key 0x11 = 00         (0)
+    key 0x13 = 09         (9)
+    key 0x14 = 201C000202 (8623496224)
+    key 0x15 = 09         (9)
+    key 0x16 = 78         (120)
+    key 0x17 = 41         (65)
+    key 0x18 = 00         (0)
+    key 0x1E = F000       (240)
+    key 0x1F = 01         (1)
+    key 0x20 = 00         (0)
+    key 0x21 = 01         (1)
+    key 0x27 = 00000000   (0)
+
+ t=2.7356 CHANGED:
+    key 0x09: 50 -> 4F   (80 -> 79)
+    key 0x1E: F000 -> F700   (240 -> 247)
+
+ t=3.8312 CHANGED:
+    key 0x09: 4F -> 52   (79 -> 82)
+    key 0x0A: 18 -> 19   (24 -> 25)
+    key 0x1E: F700 -> FE00   (247 -> 254)
+
+ t=4.9269 CHANGED:
+    key 0x09: 52 -> 55   (82 -> 85)
+
+ t=6.0229 CHANGED:
+    key 0x09: 55 -> 58   (85 -> 88)
+
+ t=7.1187 CHANGED:
+    key 0x09: 58 -> 5A   (88 -> 90)
+
+ t=8.2145 CHANGED:
+    key 0x09: 5A -> 5B   (90 -> 91)
+    key 0x1E: FE00 -> F700   (254 -> 247)
+
+ t=9.3102 CHANGED:
+    key 0x09: 5B -> 5C   (91 -> 92)
+
+ t=10.4061 CHANGED:
+    key 0x09: 5C -> 5D   (92 -> 93)
+    key 0x0A: 19 -> 1A   (25 -> 26)
+    key 0x1E: F700 -> 0401   (247 -> 260)
+
+ t=12.5978 CHANGED:
+    key 0x09: 5D -> 5E   (93 -> 94)
+
+ t=21.3643 CHANGED:
+    key 0x09: 5E -> 5F   (94 -> 95)
+    key 0x1E: 0401 -> 0B01   (260 -> 267)
+
+=== ESP->MCU COMMAND FRAMES ===

@@ -1,0 +1,313 @@
+=== FULL FRAME TIMELINE (chronological, both directions) ===
+ t= 2.9644 MCU->ESP SEND  seq= 14 payloadType=0x023055 len= 96 cks=OK
+ t= 2.9742 ESP->MCU ACK   seq= 14 payloadType=0x023055 len= 10 cks=OK
+ t= 4.0603 MCU->ESP SEND  seq= 15 payloadType=0x023055 len= 96 cks=OK
+ t= 4.0705 ESP->MCU ACK   seq= 15 payloadType=0x023055 len= 10 cks=OK
+ t= 6.2524 MCU->ESP SEND  seq= 16 payloadType=0x023055 len= 96 cks=OK
+ t= 6.2621 ESP->MCU ACK   seq= 16 payloadType=0x023055 len= 10 cks=OK
+ t= 8.4447 MCU->ESP SEND  seq= 17 payloadType=0x023055 len= 96 cks=OK
+ t= 8.4544 ESP->MCU ACK   seq= 17 payloadType=0x023055 len= 10 cks=OK
+ t=11.7333 MCU->ESP SEND  seq= 18 payloadType=0x023055 len= 96 cks=OK
+ t=11.7430 ESP->MCU ACK   seq= 18 payloadType=0x023055 len= 10 cks=OK
+ t=11.8320 MCU->ESP SEND  seq= 19 payloadType=0x023055 len= 96 cks=OK
+ t=11.8415 ESP->MCU ACK   seq= 19 payloadType=0x023055 len= 10 cks=OK
+ t=12.7290 MCU->ESP SEND  seq= 20 payloadType=0x023055 len= 96 cks=OK
+ t=12.7389 ESP->MCU ACK   seq= 20 payloadType=0x023055 len= 10 cks=OK
+ t=13.6255 MCU->ESP SEND  seq= 21 payloadType=0x023055 len= 96 cks=OK
+ t=13.6354 ESP->MCU ACK   seq= 21 payloadType=0x023055 len= 10 cks=OK
+ t=13.7250 MCU->ESP SEND  seq= 22 payloadType=0x023055 len= 96 cks=OK
+ t=13.7349 ESP->MCU ACK   seq= 22 payloadType=0x023055 len= 10 cks=OK
+ t=14.6218 MCU->ESP SEND  seq= 23 payloadType=0x023055 len= 96 cks=OK
+ t=14.6316 ESP->MCU ACK   seq= 23 payloadType=0x023055 len= 10 cks=OK
+ t=16.1175 MCU->ESP SEND  seq= 24 payloadType=0x023055 len= 96 cks=OK
+ t=16.1274 ESP->MCU ACK   seq= 24 payloadType=0x023055 len= 10 cks=OK
+ t=16.6148 MCU->ESP SEND  seq= 25 payloadType=0x023055 len= 96 cks=OK
+ t=16.6246 ESP->MCU ACK   seq= 25 payloadType=0x023055 len= 10 cks=OK
+ t=16.7143 MCU->ESP SEND  seq= 26 payloadType=0x023055 len= 96 cks=OK
+ t=16.7242 ESP->MCU ACK   seq= 26 payloadType=0x023055 len= 10 cks=OK
+ t=17.2137 MCU->ESP SEND  seq= 27 payloadType=0x023055 len= 96 cks=OK
+ t=17.2236 ESP->MCU ACK   seq= 27 payloadType=0x023055 len= 10 cks=OK
+ t=17.6111 MCU->ESP SEND  seq= 28 payloadType=0x023055 len= 96 cks=OK
+ t=17.6209 ESP->MCU ACK   seq= 28 payloadType=0x023055 len= 10 cks=OK
+ t=18.3096 MCU->ESP SEND  seq= 29 payloadType=0x023055 len= 96 cks=OK
+ t=18.3194 ESP->MCU ACK   seq= 29 payloadType=0x023055 len= 10 cks=OK
+ t=18.5079 MCU->ESP SEND  seq= 30 payloadType=0x023055 len= 96 cks=OK
+ t=18.5177 ESP->MCU ACK   seq= 30 payloadType=0x023055 len= 10 cks=OK
+ t=18.6074 MCU->ESP SEND  seq= 31 payloadType=0x023055 len= 96 cks=OK
+ t=18.6172 ESP->MCU ACK   seq= 31 payloadType=0x023055 len= 10 cks=OK
+ t=18.9064 MCU->ESP SEND  seq= 32 payloadType=0x023055 len= 96 cks=OK
+ t=18.9159 ESP->MCU ACK   seq= 32 payloadType=0x023055 len= 10 cks=OK
+ t=19.4055 MCU->ESP SEND  seq= 33 payloadType=0x023055 len= 96 cks=OK
+ t=19.4153 ESP->MCU ACK   seq= 33 payloadType=0x023055 len= 10 cks=OK
+ t=19.5040 MCU->ESP SEND  seq= 34 payloadType=0x023055 len= 96 cks=OK
+ t=19.5138 ESP->MCU ACK   seq= 34 payloadType=0x023055 len= 10 cks=OK
+ t=20.0023 MCU->ESP SEND  seq= 35 payloadType=0x023055 len= 96 cks=OK
+ t=20.0122 ESP->MCU ACK   seq= 35 payloadType=0x023055 len= 10 cks=OK
+ t=20.1018 MCU->ESP SEND  seq= 36 payloadType=0x023055 len= 96 cks=OK
+ t=20.1117 ESP->MCU ACK   seq= 36 payloadType=0x023055 len= 10 cks=OK
+ t=20.9986 MCU->ESP SEND  seq= 37 payloadType=0x023055 len= 96 cks=OK
+ t=21.0083 ESP->MCU ACK   seq= 37 payloadType=0x023055 len= 10 cks=OK
+ t=21.4971 MCU->ESP SEND  seq= 38 payloadType=0x023055 len= 96 cks=OK
+ t=21.5070 ESP->MCU ACK   seq= 38 payloadType=0x023055 len= 10 cks=OK
+ t=21.5974 MCU->ESP SEND  seq= 39 payloadType=0x023055 len= 96 cks=OK
+ t=21.6073 ESP->MCU ACK   seq= 39 payloadType=0x023055 len= 10 cks=OK
+ t=22.4929 MCU->ESP SEND  seq= 40 payloadType=0x023055 len= 96 cks=OK
+ t=22.5028 ESP->MCU ACK   seq= 40 payloadType=0x023055 len= 10 cks=OK
+ t=22.6933 MCU->ESP SEND  seq= 41 payloadType=0x023055 len= 96 cks=OK
+ t=22.7032 ESP->MCU ACK   seq= 41 payloadType=0x023055 len= 10 cks=OK
+ t=23.7892 MCU->ESP SEND  seq= 42 payloadType=0x023055 len= 96 cks=OK
+ t=23.7990 ESP->MCU ACK   seq= 42 payloadType=0x023055 len= 10 cks=OK
+ t=24.8852 MCU->ESP SEND  seq= 43 payloadType=0x023055 len= 96 cks=OK
+ t=24.8950 ESP->MCU ACK   seq= 43 payloadType=0x023055 len= 10 cks=OK
+ t=25.9814 MCU->ESP SEND  seq= 44 payloadType=0x023055 len= 96 cks=OK
+ t=25.9913 ESP->MCU ACK   seq= 44 payloadType=0x023055 len= 10 cks=OK
+ t=26.1798 MCU->ESP SEND  seq= 45 payloadType=0x023055 len= 96 cks=OK
+ t=26.1896 ESP->MCU ACK   seq= 45 payloadType=0x023055 len= 10 cks=OK
+ t=26.2793 MCU->ESP SEND  seq= 46 payloadType=0x023055 len= 96 cks=OK
+ t=26.2892 ESP->MCU ACK   seq= 46 payloadType=0x023055 len= 10 cks=OK
+ t=27.0776 MCU->ESP SEND  seq= 47 payloadType=0x023055 len= 96 cks=OK
+ t=27.0873 ESP->MCU ACK   seq= 47 payloadType=0x023055 len= 10 cks=OK
+ t=27.1762 MCU->ESP SEND  seq= 48 payloadType=0x023055 len= 96 cks=OK
+ t=27.1858 ESP->MCU ACK   seq= 48 payloadType=0x023055 len= 10 cks=OK
+ t=29.2697 MCU->ESP SEND  seq= 49 payloadType=0x023055 len= 96 cks=OK
+ t=29.2796 ESP->MCU ACK   seq= 49 payloadType=0x023055 len= 10 cks=OK
+ t=29.3681 MCU->ESP SEND  seq= 50 payloadType=0x023055 len= 96 cks=OK
+ t=29.3780 ESP->MCU ACK   seq= 50 payloadType=0x023055 len= 10 cks=OK
+ t=30.2652 MCU->ESP SEND  seq= 51 payloadType=0x023055 len= 96 cks=OK
+ t=30.2751 ESP->MCU ACK   seq= 51 payloadType=0x023055 len= 10 cks=OK
+ t=30.3657 MCU->ESP SEND  seq= 52 payloadType=0x023055 len= 96 cks=OK
+ t=30.3755 ESP->MCU ACK   seq= 52 payloadType=0x023055 len= 10 cks=OK
+ t=31.4617 MCU->ESP SEND  seq= 53 payloadType=0x023055 len= 96 cks=OK
+ t=31.4716 ESP->MCU ACK   seq= 53 payloadType=0x023055 len= 10 cks=OK
+ t=33.6533 MCU->ESP SEND  seq= 54 payloadType=0x023055 len= 96 cks=OK
+ t=33.6632 ESP->MCU ACK   seq= 54 payloadType=0x023055 len= 10 cks=OK
+ t=34.7487 MCU->ESP SEND  seq= 55 payloadType=0x023055 len= 96 cks=OK
+ t=34.7586 ESP->MCU ACK   seq= 55 payloadType=0x023055 len= 10 cks=OK
+ t=35.8444 MCU->ESP SEND  seq= 56 payloadType=0x023055 len= 96 cks=OK
+ t=35.8543 ESP->MCU ACK   seq= 56 payloadType=0x023055 len= 10 cks=OK
+ t=36.9403 MCU->ESP SEND  seq= 57 payloadType=0x023055 len= 96 cks=OK
+ t=36.9503 ESP->MCU ACK   seq= 57 payloadType=0x023055 len= 10 cks=OK
+ t=37.0387 MCU->ESP SEND  seq= 58 payloadType=0x023055 len= 96 cks=OK
+ t=37.0485 ESP->MCU ACK   seq= 58 payloadType=0x023055 len= 10 cks=OK
+ t=37.5368 MCU->ESP SEND  seq= 59 payloadType=0x023055 len= 96 cks=OK
+ t=37.5465 ESP->MCU ACK   seq= 59 payloadType=0x023055 len= 10 cks=OK
+ t=37.9355 MCU->ESP SEND  seq= 60 payloadType=0x023055 len= 96 cks=OK
+ t=37.9454 ESP->MCU ACK   seq= 60 payloadType=0x023055 len= 10 cks=OK
+ t=38.0359 MCU->ESP SEND  seq= 61 payloadType=0x023055 len= 96 cks=OK
+ t=38.0457 ESP->MCU ACK   seq= 61 payloadType=0x023055 len= 10 cks=OK
+ t=40.4257 MCU->ESP SEND  seq= 62 payloadType=0x023055 len= 96 cks=OK
+ t=40.4356 ESP->MCU ACK   seq= 62 payloadType=0x023055 len= 10 cks=OK
+ t=41.3231 MCU->ESP SEND  seq= 63 payloadType=0x023055 len= 96 cks=OK
+ t=41.3330 ESP->MCU ACK   seq= 63 payloadType=0x023055 len= 10 cks=OK
+ t=43.5149 MCU->ESP SEND  seq= 64 payloadType=0x023055 len= 96 cks=OK
+ t=43.5247 ESP->MCU ACK   seq= 64 payloadType=0x023055 len= 10 cks=OK
+ t=44.6108 MCU->ESP SEND  seq= 65 payloadType=0x023055 len= 96 cks=OK
+ t=44.6205 ESP->MCU ACK   seq= 65 payloadType=0x023055 len= 10 cks=OK
+ t=45.7066 MCU->ESP SEND  seq= 66 payloadType=0x023055 len= 96 cks=OK
+ t=45.7164 ESP->MCU ACK   seq= 66 payloadType=0x023055 len= 10 cks=OK
+ t=46.8025 MCU->ESP SEND  seq= 67 payloadType=0x023055 len= 96 cks=OK
+ t=46.8123 ESP->MCU ACK   seq= 67 payloadType=0x023055 len= 10 cks=OK
+ t=47.8984 MCU->ESP SEND  seq= 68 payloadType=0x023055 len= 96 cks=OK
+ t=47.9082 ESP->MCU ACK   seq= 68 payloadType=0x023055 len= 10 cks=OK
+ t=50.0904 MCU->ESP SEND  seq= 69 payloadType=0x023055 len= 96 cks=OK
+ t=50.1002 ESP->MCU ACK   seq= 69 payloadType=0x023055 len= 10 cks=OK
+
+=== STATUS RESPONSE (0x023055) TLV DECODE + CHANGES ===
+
+ t=2.9644 baseline, 25 fields:
+    key 0x00 = 01         (1)
+    key 0x01 = 060001     (65542)
+    key 0x02 = 00         (0)
+    key 0x03 = 01         (1)
+    key 0x04 = 01         (1)
+    key 0x05 = 0100       (1)
+    key 0x06 = 01         (1)
+    key 0x07 = 00         (0)
+    key 0x08 = 37         (55)
+    key 0x09 = 5C         (92)
+    key 0x0A = 18         (24)
+    key 0x0B = 01         (1)
+    key 0x0C = 00         (0)
+    key 0x11 = 00         (0)
+    key 0x13 = 09         (9)
+    key 0x14 = 201C000202 (8623496224)
+    key 0x15 = 09         (9)
+    key 0x16 = 78         (120)
+    key 0x17 = 41         (65)
+    key 0x18 = 00         (0)
+    key 0x1E = F700       (247)
+    key 0x1F = 01         (1)
+    key 0x20 = 00         (0)
+    key 0x21 = 01         (1)
+    key 0x27 = 00000000   (0)
+
+ t=4.0603 CHANGED:
+    key 0x09: 5C -> 5B   (92 -> 91)
+
+ t=6.2524 CHANGED:
+    key 0x09: 5B -> 5A   (91 -> 90)
+
+ t=8.4447 CHANGED:
+    key 0x09: 5A -> 59   (90 -> 89)
+
+ t=11.7333 CHANGED:
+    key 0x09: 59 -> 58   (89 -> 88)
+
+ t=11.8320 CHANGED:
+    key 0x02: 00 -> 01   (0 -> 1)
+    key 0x04: 01 -> 00   (1 -> 0)
+    key 0x05: 0100 -> 0101   (1 -> 257)
+    key 0x0C: 00 -> 09   (0 -> 9)
+
+ t=12.7290 CHANGED:
+    key 0x04: 00 -> 01   (0 -> 1)
+
+ t=13.6255 CHANGED:
+    key 0x03: 01 -> 00   (1 -> 0)
+    key 0x04: 01 -> 00   (1 -> 0)
+    key 0x07: 00 -> 01   (0 -> 1)
+
+ t=14.6218 CHANGED:
+    key 0x04: 00 -> 01   (0 -> 1)
+    key 0x07: 01 -> 00   (1 -> 0)
+
+ t=16.1175 CHANGED:
+    key 0x09: 58 -> 55   (88 -> 85)
+
+ t=16.6148 CHANGED:
+    key 0x03: 00 -> 01   (0 -> 1)
+    key 0x04: 01 -> 00   (1 -> 0)
+
+ t=17.2137 CHANGED:
+    key 0x09: 55 -> 51   (85 -> 81)
+
+ t=17.6111 CHANGED:
+    key 0x04: 00 -> 01   (0 -> 1)
+
+ t=18.3096 CHANGED:
+    key 0x09: 51 -> 4E   (81 -> 78)
+
+ t=18.5079 CHANGED:
+    key 0x03: 01 -> 00   (1 -> 0)
+    key 0x04: 01 -> 00   (1 -> 0)
+    key 0x07: 00 -> 01   (0 -> 1)
+
+ t=18.9064 CHANGED:
+    key 0x03: 00 -> 01   (0 -> 1)
+    key 0x07: 01 -> 00   (1 -> 0)
+
+ t=19.4055 CHANGED:
+    key 0x09: 4E -> 4C   (78 -> 76)
+
+ t=19.5040 CHANGED:
+    key 0x04: 00 -> 01   (0 -> 1)
+
+ t=20.0023 CHANGED:
+    key 0x03: 01 -> 00   (1 -> 0)
+    key 0x04: 01 -> 00   (1 -> 0)
+    key 0x07: 00 -> 01   (0 -> 1)
+
+ t=20.9986 CHANGED:
+    key 0x04: 00 -> 01   (0 -> 1)
+    key 0x07: 01 -> 00   (1 -> 0)
+
+ t=21.4971 CHANGED:
+    key 0x03: 00 -> 01   (0 -> 1)
+    key 0x04: 01 -> 00   (1 -> 0)
+
+ t=21.5974 CHANGED:
+    key 0x09: 4C -> 4A   (76 -> 74)
+
+ t=22.4929 CHANGED:
+    key 0x04: 00 -> 01   (0 -> 1)
+
+ t=22.6933 CHANGED:
+    key 0x09: 4A -> 47   (74 -> 71)
+
+ t=23.7892 CHANGED:
+    key 0x09: 47 -> 42   (71 -> 66)
+
+ t=24.8852 CHANGED:
+    key 0x09: 42 -> 3F   (66 -> 63)
+
+ t=25.9814 CHANGED:
+    key 0x09: 3F -> 3D   (63 -> 61)
+
+ t=26.1798 CHANGED:
+    key 0x03: 01 -> 00   (1 -> 0)
+    key 0x04: 01 -> 00   (1 -> 0)
+    key 0x07: 00 -> 01   (0 -> 1)
+
+ t=27.0776 CHANGED:
+    key 0x09: 3D -> 3C   (61 -> 60)
+
+ t=27.1762 CHANGED:
+    key 0x04: 00 -> 01   (0 -> 1)
+    key 0x07: 01 -> 00   (1 -> 0)
+
+ t=29.2697 CHANGED:
+    key 0x03: 00 -> 01   (0 -> 1)
+    key 0x04: 01 -> 00   (1 -> 0)
+    key 0x09: 3C -> 3B   (60 -> 59)
+
+ t=30.2652 CHANGED:
+    key 0x04: 00 -> 01   (0 -> 1)
+
+ t=30.3657 CHANGED:
+    key 0x09: 3B -> 38   (59 -> 56)
+
+ t=31.4617 CHANGED:
+    key 0x09: 38 -> 37   (56 -> 55)
+
+ t=33.6533 CHANGED:
+    key 0x09: 37 -> 39   (55 -> 57)
+
+ t=34.7487 CHANGED:
+    key 0x09: 39 -> 3A   (57 -> 58)
+
+ t=35.8444 CHANGED:
+    key 0x09: 3A -> 3C   (58 -> 60)
+
+ t=36.9403 CHANGED:
+    key 0x03: 01 -> 00   (1 -> 0)
+    key 0x04: 01 -> 00   (1 -> 0)
+    key 0x07: 00 -> 01   (0 -> 1)
+    key 0x09: 3C -> 3E   (60 -> 62)
+
+ t=37.5368 CHANGED:
+    key 0x03: 00 -> 01   (0 -> 1)
+    key 0x07: 01 -> 00   (1 -> 0)
+
+ t=37.9355 CHANGED:
+    key 0x04: 00 -> 01   (0 -> 1)
+
+ t=38.0359 CHANGED:
+    key 0x09: 3E -> 3F   (62 -> 63)
+
+ t=40.4257 CHANGED:
+    key 0x02: 01 -> 00   (1 -> 0)
+    key 0x05: 0101 -> 0100   (257 -> 1)
+    key 0x0C: 09 -> 00   (9 -> 0)
+
+ t=41.3231 CHANGED:
+    key 0x09: 3F -> 3C   (63 -> 60)
+
+ t=43.5149 CHANGED:
+    key 0x09: 3C -> 3D   (60 -> 61)
+
+ t=44.6108 CHANGED:
+    key 0x09: 3D -> 3E   (61 -> 62)
+
+ t=45.7066 CHANGED:
+    key 0x09: 3E -> 3F   (62 -> 63)
+
+ t=46.8025 CHANGED:
+    key 0x09: 3F -> 40   (63 -> 64)
+
+ t=47.8984 CHANGED:
+    key 0x09: 40 -> 41   (64 -> 65)
+
+ t=50.0904 CHANGED:
+    key 0x09: 41 -> 42   (65 -> 66)
+
+=== ESP->MCU COMMAND FRAMES ===
