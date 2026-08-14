@@ -160,7 +160,7 @@ This also explains the stock capture showing mode 4 with `0x13=9` at target 55:
 | `0x03` | 1 | **water tank missing** (hall sensor) |
 | `0x04` | 1 | **low water** (float switch on the pump harness) |
 | `0x05` | 2 | display — `01 01` lit, `00 00` off, `01 00` unit powered off |
-| `0x07` | 1 | humidifying — requires power AND mode≠0 AND tank present |
+| `0x07` | 1 | **water delivery active** — the pump, independent of the fan; see below |
 | `0x08` | 1 | target humidity, percent |
 | `0x09` | 1 | **current humidity, %RH** |
 | `0x0A` | 1 | temperature, whole °C (lags `0x1E`) |
@@ -177,6 +177,37 @@ This also explains the stock capture showing mode 4 with `0x13=9` at target 55:
 | `0x21` | 1 | `humidity_preference` (from `0x5537 k02`) |
 
 Unidentified: `0x00`, `0x01` (3 bytes), `0x06`, `0x11`, `0x20`, `0x27` (4 bytes).
+None of these six ever changes value — not across any capture, and not across a
+deliberate pump-cycling test. Treat them as constants, not as unknowns worth
+watching.
+
+### `0x07` is the pump, not a fan mirror
+
+The way to see it is to hold the fan still and move only the demand. Driving the
+target above and below ambient in Humidity mode keeps the fan pinned at 5 while
+`0x07` follows the demand:
+
+```
+14:49:23  target->70   fan 0->5   0x07: 0->1
+14:50:18  target->40   fan  = 5
+14:50:34               fan  = 5   0x07: 1->0    fan still running
+14:51:13  target->72   fan  = 5   0x07: 0->1
+14:52:08  target->45   fan  = 5
+14:52:25               fan  = 5   0x07: 1->0
+```
+
+Three minutes, fan constant, `0x07` toggling with demand — so it reports the
+water side, not airflow. It drops ~16 s after demand ends (16 s and 17 s in the
+two cycles above), so the pump overruns slightly rather than cutting instantly.
+
+The MCU never runs the pump without the fan: `0x07 = 1` implies fan > 0 in every
+frame on record. The converse does not hold — the fan runs with `0x07 = 0`
+whenever the unit is blowing without demand, or when the tank is out or the
+water is low.
+
+Do not conclude from a capture where the fan and `0x07` move together that one
+mirrors the other. In normal operation demand and airflow start at the same
+moment; only a constant-fan test separates them.
 
 ### `0x14`'s counter freezes; it does not free-run
 

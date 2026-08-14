@@ -379,6 +379,10 @@ class Levoit6000S : public Component {
         // makes the unit start, run ~1s, then stop and refuse further modes.
         case 0x04: low_water = (val[0] != 0); break;
         case 0x05: if (vlen >= 2) display_on = (val[1] != 0); break;
+        // The pump / water delivery, not a fan mirror. Proven by holding the
+        // fan at 5 in Humidity mode for three minutes and moving only the
+        // target: 0x07 toggled 1->0->1->0 with demand while 0x0C never budged.
+        // It trails demand by ~16 s on the way down (the pump overruns).
         case 0x07: output_running = (val[0] != 0); break;
         case 0x08: target_humidity = val[0]; break;
         case 0x09: humidity = val[0]; break;
