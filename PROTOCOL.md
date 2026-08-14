@@ -83,15 +83,14 @@ There is no mode called "Auto". The app's two auto-ish buttons are **Humidity**
 | `0x13` | 1 | auto sub-mode (from `0x5537 k01`) |
 | `0x14` | 5 | timer: bytes[0:2] = seconds remaining, uint16 LE. Doubles as the filter-dry countdown (30 min cycle) |
 | `0x15` | 1 | fan speed mirror |
+| `0x16` | 1 | rated filter life, days (constant 120) |
+| `0x17` | 1 | **filter life remaining, percent** — read 65, reset to 100 by `0x5544` |
 | `0x18` | 1 | child lock |
 | `0x1E` | 2 | **temperature ×10**, uint16 LE — always Celsius |
 | `0x1F` | 1 | dry-on-water-shortage *setting* (not a sensor) |
 | `0x21` | 1 | fan-mode variant (from `0x5537 k02`) |
 
-Unidentified: `0x00`, `0x01` (3 bytes), `0x06`, `0x11`, `0x16` (reads 120),
-`0x17` (reads 65), `0x20`, `0x27` (4 bytes). `0x16`/`0x17` are assumed to be
-filter life but did not change across a filter reset, and 120 cannot be a
-percentage.
+Unidentified: `0x00`, `0x01` (3 bytes), `0x06`, `0x11`, `0x20`, `0x27` (4 bytes).
 
 Weekly cleaning reminder and temperature unit are **app/cloud settings** — they
 generate no UART traffic and cannot be exposed through this link.
@@ -124,3 +123,9 @@ those modes happen to select fan speeds 1, 5 and 9. It is the fan speed.
 
 Both errors came from inferring across captures instead of within one. Change
 one variable, in one recording, and watch for the edge.
+
+The opposite mistake is just as easy. `0x17` (filter life) was first written off
+as "unchanged by a filter reset" because it was flat *within* the reset capture
+— but the reset landed before that capture's first status frame, so the whole
+recording was already post-reset. The 65→100 step was only visible by comparing
+captures. Check both, every time.

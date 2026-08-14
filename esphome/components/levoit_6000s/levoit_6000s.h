@@ -257,8 +257,10 @@ class Levoit6000S : public Component {
             timer_remaining = secs / 3600.0f;
           }
           break;
-        case 0x16: filter_life_pct = val[0]; break;
-        case 0x17: filter_life_days = val[0]; break;
+        // 0x17 is the wear counter: observed at 65, and a filter reset
+        // (0x5544) put it back to 100. 0x16 is a constant 120, the rated life.
+        case 0x16: filter_life_days = val[0]; break;
+        case 0x17: filter_life_pct = val[0]; break;
         case 0x18: child_lock = (val[0] != 0); break;
         case 0x1E:
           // Temperature in 0.1 C; preferred over key 0x0A, which is the same

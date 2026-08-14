@@ -97,17 +97,18 @@ sensor:
     icon: "mdi:timer-outline"
     accuracy_decimals: 2
 
-  # Filter-life mapping is inherited guesswork: key 0x16 reads 120, which
-  # cannot be a percentage. Diagnostic until verified against a real filter.
+  # Key 0x17: read 65, and a filter reset put it back to 100.
   - platform: template
     name: "Filter Life"
     id: filter_life_pct
     unit_of_measurement: "%"
+    icon: "mdi:air-filter"
     accuracy_decimals: 0
-    entity_category: diagnostic
+    state_class: measurement
 
+  # Key 0x16: constant 120, the rated filter life rather than a countdown.
   - platform: template
-    name: "Filter Life Days"
+    name: "Filter Rated Life"
     id: filter_life_days
     unit_of_measurement: "days"
     accuracy_decimals: 0
