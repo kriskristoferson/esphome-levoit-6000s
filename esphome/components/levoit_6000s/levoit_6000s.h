@@ -41,6 +41,14 @@ static constexpr uint8_t MODE_SLEEP    = 2;
 static constexpr uint8_t MODE_HUMIDITY = 3;
 static constexpr uint8_t MODE_AUTO     = 4;
 
+// 0x5537 k01 in mode 4. 1 and 2 are the app's two auto buttons and pin the
+// target to 50 % and 55 %. Any other value makes Auto regulate to the user's
+// own stored target instead, which is the only way to change what Auto aims
+// for -- the app has no UI for it and never sends anything but 1 or 2.
+static constexpr uint8_t AUTO_PREF_LOW    = 1;
+static constexpr uint8_t AUTO_PREF_HIGH   = 2;
+static constexpr uint8_t AUTO_PREF_CUSTOM = 3;
+
 // The app emits a mode change and its follow-up parameter as two frames 14-52 ms
 // apart rather than back to back. Reproduce that spacing.
 static constexpr uint32_t MODE_FOLLOWUP_MS = 60;
@@ -82,9 +90,13 @@ class Levoit6000S : public Component {
   bool child_lock = false;
 
   uint8_t mode_raw = 0;  // 0x0B as last reported; 0 = nothing seen yet
-  // Status key 0x13. Persisted across frames because the MCU omits it from some
-  // reports, and only trusted when it reads 1 or 2 -- a stock capture showed it
-  // holding 9 in Manual, so it is not exclusively auto_preference.
+  // Status key 0x13, echoing whatever 0x5537 k01 was last sent. In mode 4 it
+  // selects the target: 1 -> 50 %, 2 -> 55 %, anything else -> the user's own
+  // stored target. Proven by setting the stored target to 45 in Humidity mode,
+  // entering Auto (which snapped to the preset 50) and then sending k01=3,
+  // which moved the reported target to 45 rather than to a third preset. This
+  // also explains the stock capture that showed 0x13=9 in mode 4 with target
+  // 55: 55 was that unit's stored target.
   uint8_t auto_preference = 1;
   std::string work_mode;
   std::string fan_level_name;
@@ -218,19 +230,21 @@ class Levoit6000S : public Component {
                       [this, raw]() { send_kv_(OP_FAN_SPEED, 0x01, raw); });
   }
 
-  // Auto owns the target humidity: mode 4 reports 50 (pref 1) or 55 (pref 2)
-  // and keeps overriding whatever is written, though the value is remembered
-  // and reappears in Humidity mode. Measured both ways. So a write from Auto
-  // means "hold this number", which is Humidity mode.
+  // Auto's target is a function of auto_preference: 1 pins it to 50 %, 2 to
+  // 55 %, and any other value hands it back to the user's own stored target.
+  // So a target written from Auto does not require leaving Auto -- it requires
+  // moving off the two presets first, otherwise the preset immediately
+  // overrides the write and the control snaps back.
   void set_target_humidity(uint8_t pct) {
-    if (mode_raw != MODE_AUTO) {
-      send_kv_(OP_TARGET_RH, 0x01, pct);
+    if (mode_raw == MODE_AUTO && auto_preference < AUTO_PREF_CUSTOM) {
+      ESP_LOGI(TAG, "target %u%% requested in Auto on preset %u; moving to the custom target first",
+               pct, auto_preference);
+      set_auto_preference(AUTO_PREF_CUSTOM);
+      this->set_timeout("target_after_pref", MODE_FOLLOWUP_MS,
+                        [this, pct]() { send_kv_(OP_TARGET_RH, 0x01, pct); });
       return;
     }
-    ESP_LOGI(TAG, "target %u%% requested in Auto; switching to Humidity mode first", pct);
-    set_mode(MODE_HUMIDITY);
-    this->set_timeout("target_after_mode", MODE_FOLLOWUP_MS,
-                      [this, pct]() { send_kv_(OP_TARGET_RH, 0x01, pct); });
+    send_kv_(OP_TARGET_RH, 0x01, pct);
   }
 
   // Write-only: no status key tracks the user timer. 0x14 is the filter-dry
@@ -361,15 +375,10 @@ class Levoit6000S : public Component {
         case 0x09: humidity = val[0]; break;
         case 0x0B: mode_raw = val[0]; break;
         case 0x0C: fan_actual = val[0]; break;
-        // Only believable as auto_preference when it reads 1 or 2; a stock
-        // capture caught it holding 9 in Manual, so it carries something else
-        // too. Outside that range, keep what we last commanded.
-        case 0x13:
-          if (val[0] == 1 || val[0] == 2)
-            auto_preference = val[0];
-          else
-            ESP_LOGD(TAG, "key 0x13 = %u, out of preference range; keeping %u", val[0], auto_preference);
-          break;
+        // Taken verbatim: 0x13 faithfully echoes the last 0x5537 k01, including
+        // values the app never sends. An earlier guard here accepted only 1 and
+        // 2, which would silently discard the custom-target preference.
+        case 0x13: auto_preference = val[0]; break;
         // 0x14 is not the user timer. bytes[0:2] is a uint16 LE countdown that
         // starts at 7200 (2 h) when a dry cycle begins, ticks down while it
         // runs and freezes when it ends -- it does not react to 0x5019 at all.
@@ -416,7 +425,12 @@ class Levoit6000S : public Component {
       case MODE_MANUAL:   work_mode = "Manual"; break;
       case MODE_SLEEP:    work_mode = "Sleep"; break;
       case MODE_HUMIDITY: work_mode = "Humidity"; break;
-      case MODE_AUTO:     work_mode = (auto_preference == 2) ? "Auto Pro" : "Auto"; break;
+      // One Auto, matching the single Auto button on the unit. The preference
+      // behind it is a target selector, not a mode: 1 and 2 are the app's two
+      // canned targets and 3 hands the target to the user. Exposing those as
+      // separate modes put three Auto entries in one menu for a device with one
+      // button, so the preference is now driven by the target control instead.
+      case MODE_AUTO: work_mode = "Auto"; break;
       case 0: break;  // key 0x0B not seen yet
       default:
         ESP_LOGW(TAG, "unmapped mode 0x%02X, keeping '%s'", mode_raw, work_mode.c_str());

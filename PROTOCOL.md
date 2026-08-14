@@ -106,18 +106,35 @@ then `0x5537 k01=<pref>` as a second frame 14–52 ms later:
 |---|---|---|
 | 1 | 50 % | 1 |
 | 2 | 55 % | 5 |
+| anything else | the user's stored target | varies |
 
 So the app's two auto buttons are one wire mode with two preferences, and
 modelling them as separate "Away" and "Auto Preset" controls was a mistake.
 `0x5537 k02` is `humidity_preference` (status `0x21`), which picks fan 9 vs
 fan 5 within Humidity mode — the same trick, not yet exposed as an entity.
 
-**Mode 4 owns the target humidity.** `0x5536` sent while in mode 4 is accepted
-and remembered, but `0x08` keeps reporting the preference's own target for as
-long as mode 4 is active. Measured: in Humidity mode, setting 65 sticks at 65;
-in Auto the same write reads back 50, and 55 in Auto Pro — then switching to
-Humidity brings the stored 65 back. So writing a target from Auto is only
-meaningful if you also leave Auto.
+**The auto target is settable, and preference 3 is how.** The app has no UI for
+it and only ever sends `k01=1` or `k01=2`, but the MCU accepts 0–9 and `0x13`
+echoes whatever it is given. Preferences 1 and 2 pin the target to 50 % and
+55 %; **any other value hands the target back to the user's own stored value**,
+which `0x5536` then sets normally.
+
+Proven by elimination rather than by reading 65 twice and assuming:
+
+```
+set target 45 in Humidity mode   0x0B=3  0x08=45
+enter Auto (k01=1)               0x0B=4  0x08=50   preset overrides
+send 0x5537 k01=3                0x0B=4  0x08=45   follows the stored target
+```
+
+Had preference 3 been a third hard-coded preset it would have reported 65 — the
+value stored before the test — instead of 45. This also explains the stock
+capture that shows mode 4 with `0x13=9` reporting target 55: 55 was that unit's
+stored target at the time, not a preset.
+
+So a target written from Auto does **not** require leaving Auto; it requires
+moving off preferences 1 and 2 first, or the preset overwrites it and the
+control snaps back.
 
 ## Status report (MCU → ESP, `0x5530`)
 
