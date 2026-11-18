@@ -3,7 +3,6 @@
 #include "esphome/core/component.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
-#include "soc/usb_serial_jtag_reg.h"
 #include "driver/uart.h"
 #include "driver/gpio.h"
 #include <cstring>
@@ -119,11 +118,7 @@ class Levoit6000S : public Component {
   void setup() override {
     instance = this;
 
-    // GPIO18/19 are the USB Serial/JTAG D-/D+ pads; the pad must be released
-    // before they can be used as a UART.
-    volatile uint32_t *conf0 = (volatile uint32_t *) USB_SERIAL_JTAG_CONF0_REG;
-    *conf0 &= ~USB_SERIAL_JTAG_USB_PAD_ENABLE;
-
+    
     uart_config_t cfg = {};
     cfg.baud_rate = 115200;
     cfg.data_bits = UART_DATA_8_BITS;
@@ -132,7 +127,7 @@ class Levoit6000S : public Component {
     cfg.flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
     cfg.source_clk = UART_SCLK_DEFAULT;
     uart_param_config(UART_NUM_1, &cfg);
-    uart_set_pin(UART_NUM_1, 19, 18, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
+    uart_set_pin(UART_NUM_1, 17, 16, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
     uart_driver_install(UART_NUM_1, 512, 512, 0, nullptr, 0);
 
     // The link needs no handshake, so commands are accepted immediately. The
