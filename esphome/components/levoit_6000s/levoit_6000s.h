@@ -108,10 +108,21 @@ class Levoit6000S : public Component {
   bool state_dirty = false;
   bool publish_all = true;
 
-  // The device stores 1-9 and echoes whatever it is sent, but the hardware only
-  // has three fan levels: 1-3 low, 4-6 medium, 7-9 high. Metered at every step.
-  static uint8_t fan_level_to_raw(uint8_t level) { return level <= 1 ? 1 : (level == 2 ? 5 : 9); }
-  static uint8_t fan_raw_to_level(uint8_t raw) { return raw <= 3 ? 1 : (raw <= 6 ? 2 : 3); }
+  
+// Superior 6000S: preserve the full 1-9 fan setpoint.
+// Do not collapse values into the three display groups.
+static uint8_t fan_level_to_raw(uint8_t level) {
+  if (level < 1) return 1;
+  if (level > 9) return 9;
+  return level;
+}
+
+static uint8_t fan_raw_to_level(uint8_t raw) {
+  if (raw < 1) return 1;
+  if (raw > 9) return 9;
+  return raw;
+}
+
 
   float get_setup_priority() const override { return setup_priority::LATE; }
 
@@ -478,8 +489,8 @@ class Levoit6000S : public Component {
   }
 
   static std::string level_name_(uint8_t level) {
-    return level == 1 ? "Low" : (level == 2 ? "Medium" : "High");
-  }
+  return std::to_string(level);
+}
 
   void send_ack_(uint16_t opcode, uint8_t seq) { send_frame_(0x12, opcode, seq, nullptr, 0); }
 };
